@@ -8,8 +8,9 @@ import { ui, resetScreenState } from './appstate.js';
 import { icon, avatar, toast, initToast, initSheet, openSheet, closeSheet, sheetOpen, prefs, setPref, applyTheme, armed } from './ui.js';
 import { homeView, activityView, activityListHtml, activityCounts, insightsView, moreView } from './views.js';
 import { openQuickAdd, openEdit, removeWithUndo, openBudgets, openCloudSetup, askPassphrase, openRestore, openAddDevice } from './sheets.js';
-import { initGate, show as showGate, gateOpen } from './gate.js';
+import { initGate, show as showGate, gateOpen, gateScreen } from './gate.js';
 import { parseSetupLink } from './sync.js';
+import { initNative, isNative, nativeInfo, saveTextFile, onBack } from './native.js';
 
 const TABS = ['home', 'activity', 'insights', 'more'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -106,6 +107,13 @@ function leave() {
 function exportFile() {
   const p = ui.profile, n = new Date();
   const name = 'smart-spend-' + (p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'profile') + '-backup-' + n.getFullYear() + pad(n.getMonth() + 1) + pad(n.getDate()) + '.json';
+  const count = state.txns.length;
+  if (isNative) {
+    saveTextFile(name, JSON.stringify(buildBackupPayload(p.name), null, 2))
+      .then((saved) => { if (saved) toast('Backup file saved · ' + count + ' records', { tone: 'ok' }); })
+      .catch(() => toast('Couldn’t save the file.', { tone: 'err' }));
+    return;
+  }
   try {
     const url = URL.createObjectURL(new Blob([JSON.stringify(buildBackupPayload(p.name), null, 2)], { type: 'application/json' }));
     const a = document.createElement('a');
@@ -273,6 +281,7 @@ function install() {
   }
 }
 function initPWA() {
+  if (isNative) { ui.standalone = true; return; }             // the Android app: no install prompt, no service worker
   ui.standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstall = e; ui.install = e; if (ui.tab === 'home' || ui.tab === 'more') render(); });
   window.addEventListener('appinstalled', () => { deferredInstall = null; ui.install = null; ui.standalone = true; toast('Installed. Open Smart Spend from your home screen.', { tone: 'ok' }); render(); });
@@ -376,6 +385,15 @@ function boot() {
     if (ui.profile && e.key === dataKey(ui.profile.id)) { load(ui.profile.id); render(); }
   });
 
+  // Android Back: close what's on top, then go Home, then leave the app.
+  onBack(() => {
+    if (sheetOpen()) { closeSheet(); return true; }
+    if (gateOpen()) { if (gateScreen() !== 'list') { showGate('list'); return true; } return false; }
+    if (ui.profile && ui.tab !== 'home') { go('home'); return true; }
+    return false;
+  });
+  if (nativeInfo.migrated && nativeInfo.migrated.records) setTimeout(() => toast('Your ' + nativeInfo.migrated.records + ' entries from the previous app version are here.', { tone: 'ok', duration: 6000 }), 600);
+
   // Opened from a setup link? Keep it in memory only and take it off the address bar.
   const setup = /^#join=/.test(location.hash) ? parseSetupLink(location.hash) : null;
   if (/^#join=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
@@ -385,4 +403,4 @@ function boot() {
   else showGate('list');
 }
 
-boot();
+initNative().then(boot, boot);

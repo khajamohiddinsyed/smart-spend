@@ -8,6 +8,7 @@ import { CATEGORIES, catOf } from './categories.js';
 import { state, inMonth, totals, categorySpend, monthlySeries, cumulativeSpend, sortedTxns, dayAggregates, getBudgets } from './ledger.js';
 import { describe, cloudCfg } from './sync.js';
 import { ui } from './appstate.js';
+import { isNative } from './native.js';
 import { icon, catIcon, avatar, money, moneyAlt, moneyCompact, signed, prefs, displayValue } from './ui.js';
 import { inOutColumns, paceLines } from './charts.js';
 
@@ -300,7 +301,7 @@ export function moreView() {
 
   html += '<div class="section-label">App</div><div class="set-group">' +
     (ui.standalone ? '' : set('install', 'phone', 'Install Smart Spend', 'Full screen, works offline')) +
-    '<a class="set-row" href="../" style="text-decoration:none;color:inherit"><span class="set-ico">' + icon('phone') + '</span><span class="set-main"><b>Android app</b><span>Download page</span></span><span class="chev">' + icon('next') + '</span></a>' +
+    (isNative ? '' : '<a class="set-row" href="../" style="text-decoration:none;color:inherit"><span class="set-ico">' + icon('phone') + '</span><span class="set-main"><b>Android app</b><span>Download page</span></span><span class="chev">' + icon('next') + '</span></a>') +
     '<div class="set-row"><span class="set-ico">' + icon('info') + '</span><span class="set-main"><b>Smart Spend ' + APP_VERSION + '</b><span>Everything stays on this device unless you turn on online backup, which is encrypted first.' + (store.available() ? '' : ' Browser storage is blocked here, so data lasts only for this session.') + '</span></span></div></div>';
   return { html };
 }

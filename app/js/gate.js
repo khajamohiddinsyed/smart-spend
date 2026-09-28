@@ -10,6 +10,7 @@ import { forgetCloud, inspectExisting, setupCloud, tokenOwner, cleanRepo, DEFAUL
 import { adoptPin, saveProfiles } from './profiles.js';
 import { icon, avatar } from './ui.js';
 import { store } from './core.js';
+import { isNative } from './native.js';
 
 const g = { open: false, screen: 'list', pid: null, mode: null, step: null, entry: '', first: null, err: '', info: false, busy: false, armed: false, overlay: false, link: null };
 let hooks = { onUnlock: () => {}, onClose: () => {}, onDeleted: () => {} };
@@ -46,6 +47,7 @@ export function initGate(h) {
 }
 
 export const gateOpen = () => g.open;
+export const gateScreen = () => g.screen;
 
 export function show(screen, o = {}) {
   Object.assign(g, { open: true, screen, pid: o.pid || null, mode: o.mode || null, step: o.step || null, entry: '', first: null,
@@ -135,7 +137,7 @@ function render() {
       '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn" style="flex:1" data-g="' + (del ? 'cancel' : 'back-pin') + '" data-autofocus>Cancel</button>' +
       '<button class="btn danger' + (g.armed ? ' armed' : '') + '" style="flex:1" data-g="' + (del ? 'confirm-delete' : 'confirm-reset') + '">' + (g.armed ? 'Tap again to confirm' : del ? 'Delete profile' : 'Erase and reset') + '</button></div>';
   } else { g.screen = 'list'; render(); return; }
-  $('#gate').innerHTML = '<div class="gate-card">' + h + '</div>' + (g.screen === 'list' && /^https?:$/.test(location.protocol) ? '<a class="gate-foot" href="../">Get the Android app</a>' : '');
+  $('#gate').innerHTML = '<div class="gate-card">' + h + '</div>' + (g.screen === 'list' && /^https?:$/.test(location.protocol) && !isNative ? '<a class="gate-foot" href="../">Get the Android app</a>' : '');
 }
 
 function dotsUpdate(shake) {

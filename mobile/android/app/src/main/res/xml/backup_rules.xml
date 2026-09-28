@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Legacy (API 23-30) auto-backup. Everything except the sealed GitHub token and passphrase,
+     whose Keystore key never leaves this phone. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="smartspend_vault.xml" />
+    <exclude domain="file" path="datastore/cloud_settings.preferences_pb.migrated-v1" />
+</full-backup-content>

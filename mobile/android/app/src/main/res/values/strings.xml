@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Smart Spend</string>
+    <string name="title_activity_main">Smart Spend</string>
+    <string name="package_name">com.syed.spendtracker</string>
+    <string name="custom_url_scheme">com.syed.spendtracker</string>
+</resources>

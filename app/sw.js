@@ -1,10 +1,10 @@
 // Offline support: the app shell is cached; everything else goes to the network.
 // GitHub (backups and sync) is never cached.
-const VERSION = 'smartspend-2.2.0';
+const VERSION = 'smartspend-2.3.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/main.js', './js/core.js', './js/categories.js', './js/parser.js', './js/ledger.js', './js/profiles.js',
-  './js/sync.js', './js/ui.js', './js/charts.js', './js/views.js', './js/sheets.js', './js/gate.js', './js/appstate.js',
+  './js/sync.js', './js/ui.js', './js/charts.js', './js/views.js', './js/sheets.js', './js/gate.js', './js/appstate.js', './js/native.js',
   './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png', './icons/apple-touch-icon.png', './icons/favicon-64.png'
 ];
 

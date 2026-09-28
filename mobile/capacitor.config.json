@@ -1,0 +1,8 @@
+{
+  "appId": "com.syed.spendtracker",
+  "appName": "Smart Spend",
+  "webDir": "../app",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "auto"
+  }
+}

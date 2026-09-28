@@ -1,6 +1,6 @@
 // Shared helpers: DOM, dates, money, storage, hashing. No app state lives here.
 
-export const APP_VERSION = '2.2.0';
+export const APP_VERSION = '2.3.0';
 
 /* ---------- DOM ---------- */
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -97,27 +97,31 @@ export function uid() {
 
 /* ---------- Storage: try/catch everywhere, in-memory fallback ---------- */
 export const store = (() => {
-  let ok = true;
+  let ok = true, vault = null;                 // vault: Android Keystore-backed store for secrets (native.js)
   const mem = {};
   try { const k = '__smartspend_probe__'; localStorage.setItem(k, '1'); localStorage.removeItem(k); } catch (e) { ok = false; }
   return {
     get(k) {
+      if (vault && vault.handles(k)) return vault.get(k);
       if (ok) { try { return localStorage.getItem(k); } catch (e) { ok = false; } }
       return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null;
     },
     set(k, v) {
+      if (vault && vault.handles(k)) { vault.set(k, v); return true; }
       mem[k] = v;
       if (!ok) return false;
       try { localStorage.setItem(k, v); return true; } catch (e) { ok = false; return false; }
     },
     remove(k) {
+      if (vault && vault.handles(k)) { vault.remove(k); return; }
       delete mem[k];
       if (!ok) return;
       try { localStorage.removeItem(k); } catch (e) { ok = false; }
     },
     getJSON(k, fallback) { try { const r = this.get(k); return r ? JSON.parse(r) : fallback; } catch (e) { return fallback; } },
     setJSON(k, v) { return this.set(k, JSON.stringify(v)); },
-    available() { return ok; }
+    available() { return ok; },
+    setVault(v) { vault = v; }
   };
 })();
 

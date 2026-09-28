@@ -17,7 +17,8 @@ const AUTO_BACKUP_MS = 20 * 3600 * 1000;
 
 const GH_ROOT = (() => {
   try {
-    if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+    const inApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (!inApp && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {   // the Android app is served from localhost too
       const o = localStorage.getItem('smartspend.devApi');         // local test server only
       if (o && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(o)) return o;
     }
