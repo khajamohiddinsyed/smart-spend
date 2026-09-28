@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; connect-src https://api.github.com; form-action 'none'; base-uri 'none'">
 <meta name="theme-color" content="#070b14">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
@@ -299,6 +299,7 @@
   .pv-meta { font-size: 11.5px; color: var(--muted); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-top: 2px; }
   .pv-amt { text-align: right; font-size: 13px; font-weight: 700; }
   .pv-amt .inr { display: block; font-size: 11px; color: var(--inr); font-weight: 600; }
+  .pv-note { font-size: 11px; color: var(--inr); font-weight: 600; }
   .pv-skip { font-size: 11.5px; color: var(--dim); padding: 6px 4px 2px; border-top: 1px solid var(--border); }
   .pv-skip q { color: var(--muted); }
 
@@ -411,6 +412,46 @@
   .vault .btn svg { color: var(--muted); }
   .vault .btn.danger svg, .vault .btn.danger.armed svg { color: inherit; }
   .vault-note { font-size: 12px; color: var(--dim); margin-top: 12px; }
+  .cloud {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px;
+    padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2);
+  }
+  .cloud-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+  .cloud.on .cloud-ico { background: var(--in-soft); color: var(--in); }
+  .cloud-txt { flex: 1 1 180px; min-width: 0; display: flex; flex-direction: column; }
+  .cloud-txt b { font-size: 13.5px; }
+  .cloud-txt span { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .cloud-acts { display: flex; gap: 8px; }
+
+  /* ---------- Sheet contents ---------- */
+  .sheet { max-width: 520px; }
+  .sh-intro { font-size: 13px; color: var(--muted); margin: -4px 0 16px; }
+  .sh-sec { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--dim); font-weight: 700; margin: 18px 0 8px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .sh-sec:first-child { margin-top: 0; }
+  .sh-sec .btn { text-transform: none; letter-spacing: 0; }
+  .sh-form { display: flex; flex-direction: column; gap: 12px; }
+  .sh-help { font-size: 12px; color: var(--muted); font-weight: 500; text-transform: none; letter-spacing: 0; line-height: 1.45; }
+  .sh-help code { color: var(--text); font-size: 11.5px; overflow-wrap: anywhere; }
+  .sh-steps { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+  .sh-check { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--text); cursor: pointer; }
+  .sh-check input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--accent); flex: none; }
+  .sh-check small { display: block; color: var(--muted); font-size: 12px; }
+  .sh-msg { font-size: 12.5px; min-height: 18px; color: var(--out); }
+  .sh-msg.ok { color: var(--in); }
+  .sh-msg.info { color: var(--muted); }
+  .sh-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 18px; }
+  .sh-actions .spacer { flex: 1; }
+  .bk-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; }
+  .bk {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+    padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2);
+  }
+  .bk.latest { border-color: rgba(16, 185, 129, 0.45); }
+  .bk b { font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .bk span { font-size: 12px; color: var(--muted); }
+  .bk .pill-s { font-size: 10.5px; font-weight: 700; color: var(--in); background: var(--in-soft); border-radius: 999px; padding: 1px 8px; }
+  .bk-empty { font-size: 13px; color: var(--muted); padding: 14px; border: 1px dashed var(--border-2); border-radius: 12px; text-align: center; }
+  .bk-confirm { border: 1px solid var(--border-2); border-radius: 12px; padding: 14px; background: var(--card-2); font-size: 13px; display: grid; gap: 10px; }
   .vault-note.warn { color: var(--inr); }
 
   /* ---------- Modal ---------- */
@@ -734,6 +775,19 @@
           </button>
         </div>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <div class="cloud" id="cloudBox">
+          <span class="cloud-ico" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.5 19H8a5 5 0 1 1 .9-9.9A6 6 0 0 1 20 11.5 3.8 3.8 0 0 1 17.5 19z"/><path d="M12 12v5"/><path d="m9.5 14.5 2.5-2.5 2.5 2.5"/></svg>
+          </span>
+          <div class="cloud-txt">
+            <b>Online backup</b>
+            <span id="cloudStatus">Not set up</span>
+          </div>
+          <div class="cloud-acts">
+            <button type="button" class="btn sm primary" id="cloudBackupBtn" hidden>Back up now</button>
+            <button type="button" class="btn sm" id="cloudSetupBtn">Set up</button>
+          </div>
+        </div>
         <div class="vault-note" id="vaultNote"></div>
       </section>
 
@@ -789,6 +843,19 @@
   </div>
 </div>
 
+<!-- Sheet: online backup settings, restore list, passphrase prompt -->
+<div class="overlay" id="sheetOverlay" aria-hidden="true">
+  <div class="modal sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+    <div class="modal-h">
+      <h3 id="sheetTitle">—</h3>
+      <button type="button" class="icon-btn" data-sheet="close" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
+
 <!-- Profile picker / PIN gate -->
 <div class="gate" id="gate" role="dialog" aria-modal="true" aria-label="Choose a profile">
   <div class="gate-card">
@@ -830,73 +897,299 @@
   var MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-  // "~" prefix marks a generic keyword (weight 1); plain keywords weigh 2.
+  // Category knowledge base. A "~" prefix marks a generic word (weight 1).
+  // Plain words weigh 2 and multi-word phrases 3, so "coffee beans" beats
+  // "coffee" and "credit card" beats "credit". Words match with plural and
+  // tense endings; words of 6+ letters also match as prefixes
+  // (electric → electricity) and tolerate one typo (resturant → restaurant).
   var CATEGORIES = [
     { id: 'Groceries', label: 'Groceries', color: '#a3e635',
-      kw: ['supermarket', 'hypermarket', 'mart', 'vegetables', 'veggies', 'fruits', 'panda', 'lulu', 'carrefour', 'tamimi', 'danube', 'othaim', 'grocery', 'groceries', 'bakery', '~milk'] },
+      kw: ['supermarket', 'hypermarket', 'grocery', 'groceries', 'mart', 'minimart', 'mini market', 'baqala', 'bakala', 'provisions',
+        'tamimi', 'danube', 'othaim', 'al othaim', 'panda', 'lulu', 'lulu hypermarket', 'carrefour', 'nesto', 'bin dawood', 'farm superstores',
+        'manuel', 'spar', 'al raya', 'ninja', 'dmart', 'bigbasket', 'big basket', 'blinkit', 'zepto', 'instamart', 'jiomart',
+        'reliance fresh', 'natures basket', 'vegetables', 'veggies', 'vegetable', 'fruits', 'fruit', 'sabzi', 'bakery',
+        'nova water', 'berain', 'water bottle', 'coffee beans', 'gas cylinder refill',
+        '~milk', '~eggs', '~bread', '~rice', '~chicken', '~meat', '~mutton', '~fish', '~dates', '~oil', '~sugar', '~atta', '~flour',
+        '~dal', '~laban', '~yogurt', '~curd', '~cheese', '~butter', '~onions', '~tomatoes', '~potatoes', '~household', '~detergent', '~tissues'] },
     { id: 'Dining', label: 'Dining', color: '#fb923c',
-      kw: ['~food', 'lunch', 'dinner', 'breakfast', 'brunch', 'cafe', 'coffee', 'starbucks', 'shawarma', 'restaurant', 'pizza', 'burger', 'mcdonald', 'kfc', 'albaik', 'snacks', 'hungerstation', 'jahez', 'talabat', 'dunkin', '~tea'] },
+      kw: ['restaurant', 'cafe', 'cafeteria', 'coffee', 'starbucks', 'dunkin', 'tim hortons', 'barns', 'half million', 'dr cafe', 'costa',
+        'java time', 'caribou', 'lunch', 'dinner', 'breakfast', 'brunch', 'supper', 'snacks', 'snack', 'shawarma', 'shawarmer', 'mandi',
+        'kabsa', 'biryani', 'broast', 'falafel', 'burger', 'pizza', 'mcdonald', 'mcdonalds', 'kfc', 'albaik', 'al baik', 'kudu', 'herfy',
+        'burger king', 'hardees', 'pizza hut', 'dominos', 'domino', 'maestro pizza', 'little caesars', 'subway', 'five guys', 'shake shack',
+        'hungerstation', 'hunger station', 'jahez', 'toyou', 'mrsool', 'the chefz', 'chefz', 'keeta', 'swiggy', 'zomato', 'careem food',
+        'talabat', 'chai', 'karak', 'juice', 'dessert', 'ice cream', 'kunafa', 'takeaway', 'take away', 'dine out', 'eating out',
+        'canteen', 'mess bill', 'sandwich', 'noodles', 'tea stall', '~food', '~tea', '~meal', '~meals', '~treat'] },
     { id: 'Transport', label: 'Transport', color: '#60a5fa',
-      kw: ['uber', 'careem', 'fuel', 'petrol', 'diesel', 'cab', 'taxi', 'metro', 'parking', 'toll', 'train', 'flight', '~fare', '~bus'] },
+      kw: ['uber', 'careem', 'bolt', 'jeeny', 'ola', 'rapido', 'taxi', 'cab', 'fuel', 'petrol', 'diesel', 'gas station', 'aldrees',
+        'sasco', 'naft', 'petrol pump', 'metro', 'saptco', 'train', 'haramain', 'flight', 'flights', 'airline', 'flynas', 'flyadeal',
+        'saudia', 'indigo', 'air india', 'emirates', 'air arabia', 'airport', 'parking', 'toll', 'car wash', 'car service', 'oil change',
+        'tyre', 'tire', 'tyres', 'tires', 'mechanic', 'car rental', 'rent a car', 'yelo', 'theeb', 'traffic fine', 'saher',
+        'car insurance', 'boarding pass', 'commute', '~gas', '~fare', '~bus', '~ride'] },
     { id: 'Utilities', label: 'Utilities', color: '#a78bfa',
-      kw: ['electric', 'internet', 'wifi', 'wi-fi', 'broadband', 'rent', 'recharge', 'stc', 'mobily', 'zain', '~water', '~bill', '~phone'] },
+      kw: ['electricity', 'electric', 'electricity bill', 'water bill', 'nwc', 'internet', 'wifi', 'wi fi', 'broadband', 'fiber', 'fibre',
+        'stc', 'mobily', 'zain', 'virgin mobile', 'lebara', 'salam mobile', 'jawwy', 'airtel', 'jio', 'vodafone', 'bsnl', 'recharge',
+        'topup', 'top up', 'postpaid', 'prepaid', 'phone bill', 'mobile bill', 'rent', 'ejar', 'house rent', 'room rent',
+        'maintenance fee', 'service charge', 'gas cylinder', 'lpg', 'dth', 'tata sky', 'netflix', 'spotify', 'shahid', 'osn',
+        'youtube premium', 'apple music', 'icloud', 'google one', 'amazon prime', 'disney plus', 'chatgpt', 'subscription', 'sec bill',
+        '~water', '~bill', '~bills', '~phone', '~rental', '~utility'] },
     { id: 'Cash', label: 'Cash/ATM', color: '#2dd4bf',
-      kw: ['got cash', 'atm', 'withdrew', 'withdrawal', 'withdrawn', '~cash'] },
+      kw: ['atm', 'withdrew', 'withdrawal', 'withdrawn', 'cash withdrawal', 'got cash', 'cash deposit', 'cash in hand', '~cash'] },
     { id: 'Shopping', label: 'Shopping', color: '#f472b6',
-      kw: ['shopping', 'amazon', 'noon', 'clothes', 'shoes', 'shirt', 'jarir', 'ikea', 'namshi', 'shein', 'electronics', 'gadget', 'centrepoint', '~mall'] },
+      kw: ['shopping', 'amazon', 'noon', 'namshi', 'shein', 'jarir', 'extra store', 'ikea', 'centrepoint', 'centerpoint', 'max fashion',
+        'h&m', 'zara', 'lc waikiki', 'nike', 'adidas', 'puma', 'apple store', 'sharaf dg', 'virgin megastore', 'flipkart', 'myntra',
+        'ajio', 'meesho', 'nykaa', 'decathlon', 'home centre', 'home center', 'saco', 'ace hardware', 'toys r us', 'clothes', 'clothing',
+        'shoes', 'sneakers', 'shirt', 'tshirt', 't shirt', 'jeans', 'dress', 'abaya', 'thobe', 'shemagh', 'perfume', 'cosmetics',
+        'makeup', 'electronics', 'gadget', 'laptop', 'iphone', 'headphones', 'earbuds', 'airpods', 'charger', 'phone case', 'furniture',
+        'toys', 'stationery', 'books', 'watch strap', '~mall', '~gift', '~gifts'] },
     { id: 'Healthcare', label: 'Healthcare', color: '#f87171',
-      kw: ['pharmacy', 'doctor', 'hospital', 'clinic', 'medicine', 'medical', 'nahdi', 'dawaa', 'dental', 'dentist', 'vitamins', '~health', '~lab'] },
+      kw: ['pharmacy', 'chemist', 'nahdi', 'al dawaa', 'dawaa', 'whites pharmacy', 'doctor', 'clinic', 'hospital', 'dental', 'dentist',
+        'medicine', 'medicines', 'tablets', 'blood test', 'x ray', 'xray', 'scan', 'mri', 'health insurance', 'medical insurance', 'bupa',
+        'tawuniya', 'medgulf', 'apollo', 'pharmeasy', '1mg', 'practo', 'optician', 'glasses', 'contact lenses', 'physio',
+        'physiotherapy', 'vaccine', 'vaccination', 'gym', 'fitness time', 'gold gym', 'fitness', 'vitamins', 'supplements', 'medical',
+        '~health', '~lab', '~consultation', '~checkup'] },
     { id: 'Salary', label: 'Salary', color: '#10b981',
-      kw: ['salary', 'payroll', 'wage', 'wages', 'stipend', 'paycheck', '~bonus'] },
+      kw: ['salary', 'payroll', 'wage', 'wages', 'stipend', 'paycheck', 'increment', 'allowance', 'overtime', 'end of service',
+        'gratuity', 'housing allowance', '~bonus'] },
     { id: 'Freelance', label: 'Freelance', color: '#38bdf8',
-      kw: ['freelance', 'invoice', 'upwork', 'fiverr', 'gig', 'consulting', '~client', '~project'] },
+      kw: ['freelance', 'freelancing', 'invoice', 'upwork', 'fiverr', 'toptal', 'gig', 'consulting', 'consultancy', 'commission',
+        'side hustle', 'client payment', '~client', '~project', '~contract', '~tutoring'] },
     { id: 'General', label: 'General', color: '#94a3b8', kw: [] }
   ];
   var CAT_BY_ID = {};
   CATEGORIES.forEach(function (c) { CAT_BY_ID[c.id] = c; });
 
-  var INFLOW_KW = ['salary', 'receiv', 'earned', 'earn', 'earnings', 'credit', 'refund', 'bonus', 'client', 'dividend',
-    'deposit', 'got', 'collected', 'cash in', 'inflow', 'reimburs', 'gift', 'sold', 'income', '~~paid me', '~~sent me'];
-  var OUTFLOW_KW = ['spent', 'spend', 'spending', 'paid', 'pay', 'bought', 'buy', 'purchase', 'bill', 'fee', 'gave', 'cost',
-    'lent', 'outflow', 'order', 'charge', 'subscription', 'donated', '~~credit card'];
+  var INFLOW_KW = ['salary', 'received', 'receive', 'receiving', 'got', 'earned', 'earn', 'earnings', 'income', 'credited', 'credit',
+    'refund', 'refunded', 'cashback', 'cash back', 'bonus', 'client', 'dividend', 'dividends', 'interest', 'deposit', 'deposited',
+    'collected', 'cash in', 'inflow', 'reimbursed', 'reimbursement', 'gift', 'gifted', 'sold', 'paid me', 'sent me', 'gave me',
+    'transferred me', 'repaid me', 'returned my', 'borrowed', 'allowance', 'stipend', 'profit', 'winnings', 'won', 'prize',
+    'rent received', 'incoming'];
+  var OUTFLOW_KW = ['spent', 'spend', 'spending', 'paid', 'pay', 'paying', 'payed', 'bought', 'buy', 'buying', 'purchase', 'purchased',
+    'bill', 'fee', 'fees', 'gave', 'give', 'cost', 'costs', 'lent', 'lend', 'outflow', 'order', 'ordered', 'charge', 'charged',
+    'subscription', 'donated', 'donation', 'zakat', 'sadaqah', 'sadaqa', 'charity', 'sent to', 'transferred to', 'transfer to',
+    'remittance', 'sent home', 'emi', 'installment', 'instalment', 'tip', 'fine', 'penalty', 'credit card', 'debited', 'debit',
+    'withdrew', '~rent', '~recharge', '~top up', '~transfer'];
+
+  // Words that never identify a merchant; they are skipped by typo matching
+  // and never learned.
+  var STOP_WORDS = {};
+  ('a an the and or of on at to for from in into by with via my our his her their me us you it is was were be been this that these ' +
+    'those some any all one two few more most other just only also then than too very really new old big small item items thing things ' +
+    'stuff store shop shops market place online app card payment amount total today yesterday tomorrow morning evening night week month ' +
+    'year day days ago back last next sar sr riyal riyals rial rials inr rs rupee rupees each per worth approx around about nearly ' +
+    'jan feb mar apr may jun jul aug sep sept oct nov dec january february march april june july august september october november ' +
+    'december sun mon tue wed thu fri sat sunday monday tuesday wednesday thursday friday saturday')
+    .split(' ').forEach(function (w) { STOP_WORDS[w] = 1; });
 
   /* ======================================================================
-     Keyword compilation
+     Keyword matching engine
      ====================================================================== */
   function escRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
-
-  // Long single words match as prefixes (electric → electricity); short words
-  // and phrases match whole-word with an optional plural / past-tense tail.
-  function kwRegex(kw) {
-    var body = escRe(kw).replace(/\s+/g, '\\s+');
-    var tail = (kw.length >= 6 && kw.indexOf(' ') === -1) ? '[a-z]*' : '(?:s|es|ed)?';
-    return new RegExp('(?:^|[^a-z0-9])(' + body + tail + ')(?![a-z0-9])', 'i');
+  function normText(s) {
+    return String(s).toLowerCase().replace(/[’'`]/g, '').replace(/[^a-z0-9&؀-ۿ]+/g, ' ').trim();
   }
 
-  function compileList(list, baseWeight, genericWeight) {
-    return list.map(function (raw) {
-      var w = baseWeight, k = raw;
-      if (k.indexOf('~~') === 0) { w = 2; k = k.slice(2); }
-      else if (k.charAt(0) === '~') { w = genericWeight; k = k.slice(1); }
-      return { re: kwRegex(k), w: w };
-    });
-  }
-
-  CATEGORIES.forEach(function (c) { c.kwRe = compileList(c.kw, 2, 1); });
-  var IN_RE = compileList(INFLOW_KW, 1, 1);
-  var OUT_RE = compileList(OUTFLOW_KW, 1, 1);
-
-  function scoreKeywords(text, compiled) {
-    var score = 0, first = Infinity;
-    for (var i = 0; i < compiled.length; i++) {
-      var m = compiled[i].re.exec(text);
-      if (m) {
-        score += compiled[i].w;
-        var at = m.index + m[0].indexOf(m[1]);
-        if (at < first) first = at;
+  function buildIndex(entries, weights) {
+    var idx = { exact: {}, prefix: [], phrases: [], fuzzy: [] };
+    entries.forEach(function (en) {
+      var k = en.kw, w = null;
+      if (k.charAt(0) === '~') { k = k.slice(1); w = weights.generic; }
+      k = normText(k);
+      if (!k) return;
+      if (k.indexOf(' ') !== -1) {
+        idx.phrases.push({ re: new RegExp('(?:^| )' + escRe(k) + '(?:s|es)?(?= |$)'), key: en.key, w: w == null ? weights.phrase : w, kw: k });
+        return;
       }
+      w = w == null ? weights.word : w;
+      (idx.exact[k] || (idx.exact[k] = [])).push({ key: en.key, w: w, kw: k });
+      if (k.length >= 6) { idx.prefix.push({ key: en.key, w: w, kw: k }); idx.fuzzy.push({ key: en.key, w: w, kw: k }); }
+    });
+    return idx;
+  }
+
+  var CAT_INDEX = buildIndex([].concat.apply([], CATEGORIES.map(function (c) {
+    return c.kw.map(function (k) { return { kw: k, key: c.id }; });
+  })), { generic: 1, word: 2, phrase: 3 });
+  var DIR_INDEX = buildIndex(
+    INFLOW_KW.map(function (k) { return { kw: k, key: 'in' }; }).concat(OUTFLOW_KW.map(function (k) { return { kw: k, key: 'out' }; })),
+    { generic: 0.5, word: 1, phrase: 2 });
+
+  function wordVariants(t) {
+    var v = [t];
+    if (t.length > 3 && /s$/.test(t)) v.push(t.slice(0, -1));
+    if (t.length > 4 && /es$/.test(t)) v.push(t.slice(0, -2));
+    if (t.length > 4 && /ed$/.test(t)) { v.push(t.slice(0, -2)); v.push(t.slice(0, -1)); }
+    if (t.length > 5 && /ing$/.test(t)) { v.push(t.slice(0, -3)); v.push(t.slice(0, -3) + 'e'); }
+    return v;
+  }
+
+  function exactHits(idx, t) {
+    var v = wordVariants(t);
+    for (var i = 0; i < v.length; i++) if (idx.exact[v[i]]) return idx.exact[v[i]];
+    var out = [];
+    for (var j = 0; j < idx.prefix.length; j++) {
+      var p = idx.prefix[j];
+      if (t.length > p.kw.length && t.indexOf(p.kw) === 0) out.push(p);
     }
-    return { score: score, first: first };
+    return out;
+  }
+
+  // Optimal-string-alignment distance, bailing out once it exceeds `max`.
+  function withinEdits(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return false;
+    var prev2 = null, prev = [], cur, i, j;
+    for (j = 0; j <= b.length; j++) prev[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      var rowMin = i;
+      for (j = 1; j <= b.length; j++) {
+        var v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+        if (i > 1 && j > 1 && a.charAt(i - 1) === b.charAt(j - 2) && a.charAt(i - 2) === b.charAt(j - 1)) v = Math.min(v, prev2[j - 2] + 1);
+        cur[j] = v;
+        if (v < rowMin) rowMin = v;
+      }
+      if (rowMin > max) return false;
+      prev2 = prev;
+      prev = cur;
+    }
+    return prev[b.length] <= max;
+  }
+
+  function isKnownWord(t) {
+    return !!(STOP_WORDS[t] || exactHits(CAT_INDEX, t).length || exactHits(DIR_INDEX, t).length);
+  }
+
+  function fuzzyHit(idx, t) {
+    if (t.length < 6 || /\d/.test(t) || isKnownWord(t)) return null;
+    for (var i = 0; i < idx.fuzzy.length; i++) {
+      var f = idx.fuzzy[i];
+      if (f.kw.charAt(0) !== t.charAt(0) && f.kw.charAt(1) !== t.charAt(1)) continue;
+      if (withinEdits(t, f.kw, t.length >= 9 && f.kw.length >= 9 ? 2 : 1)) return f;
+    }
+    return null;
+  }
+
+  function bump(res, key, w, pos, kind, hint) {
+    var r = res[key] || (res[key] = { score: 0, first: Infinity, kinds: {}, hint: null });
+    r.score += w;
+    if (pos < r.first) r.first = pos;
+    r.kinds[kind] = (r.kinds[kind] || 0) + w;
+    if (hint && !r.hint) r.hint = hint;
+  }
+
+  function scoreText(idx, joined, toks) {
+    var res = {};
+    idx.phrases.forEach(function (p) {
+      var m = p.re.exec(joined);
+      if (!m) return;
+      var start = m.index + (m[0].charAt(0) === ' ' ? 1 : 0);
+      bump(res, p.key, p.w, (joined.slice(0, start).match(/ /g) || []).length, 'kw');
+    });
+    toks.forEach(function (t, pos) {
+      if (/^\d/.test(t)) return;
+      var hits = exactHits(idx, t);
+      if (hits.length) {
+        var seen = {};
+        hits.forEach(function (h) { if (!seen[h.key]) { seen[h.key] = 1; bump(res, h.key, h.w, pos, 'kw'); } });
+        return;
+      }
+      var f = fuzzyHit(idx, t);
+      if (f) bump(res, f.key, f.w * 0.75, pos, 'fuzzy', t + ' → ' + f.kw);
+    });
+    return res;
+  }
+
+  function bestOf(res) {
+    var best = null;
+    Object.keys(res).forEach(function (k) {
+      var r = res[k];
+      if (!best || r.score > res[best].score || (r.score === res[best].score && r.first < res[best].first)) best = k;
+    });
+    return best;
+  }
+
+  /* ---------- Learning from the user's own corrections ---------- */
+  // phrases: the whole cleaned title → category (strongest signal)
+  // tokens:  words the dictionaries don't know (e.g. a local shop's name)
+  function learnKey(text) {
+    return normText(text).split(' ').filter(function (t) { return t && !/\d/.test(t) && !STOP_WORDS[t] && !exactHits(DIR_INDEX, t).length; }).join(' ');
+  }
+  function learnCategory(title, cat) {
+    if (!CAT_BY_ID[cat]) return;
+    var L = state.learned;
+    var key = learnKey(title);
+    if (!key) return;
+    L.phrases[key] = { c: cat, n: Math.min(20, ((L.phrases[key] && L.phrases[key].c === cat) ? L.phrases[key].n : 0) + 1) };
+    key.split(' ').forEach(function (t) {
+      if (t.length < 3 || exactHits(CAT_INDEX, t).length) return;
+      var e = L.tokens[t] || (L.tokens[t] = {});
+      Object.keys(e).forEach(function (c) { if (c !== cat) e[c] = Math.max(0, e[c] - 1); });
+      e[cat] = Math.min(20, (e[cat] || 0) + 2);
+    });
+    pruneLearned(L);
+  }
+  function pruneLearned(L) {
+    var tk = Object.keys(L.tokens);
+    if (tk.length > 400) {
+      tk.sort(function (a, b) { return maxCount(L.tokens[a]) - maxCount(L.tokens[b]); })
+        .slice(0, tk.length - 400).forEach(function (t) { delete L.tokens[t]; });
+    }
+    var ph = Object.keys(L.phrases);
+    if (ph.length > 300) {
+      ph.sort(function (a, b) { return L.phrases[a].n - L.phrases[b].n; })
+        .slice(0, ph.length - 300).forEach(function (p) { delete L.phrases[p]; });
+    }
+  }
+  function maxCount(e) { var m = 0; for (var c in e) if (e[c] > m) m = e[c]; return m; }
+  function sanitizeLearned(raw) {
+    var out = { tokens: {}, phrases: {} };
+    if (!raw || typeof raw !== 'object') return out;
+    Object.keys(raw.tokens || {}).slice(0, 400).forEach(function (t) {
+      var e = raw.tokens[t], clean = {};
+      if (!e || typeof e !== 'object') return;
+      Object.keys(e).forEach(function (c) { if (CAT_BY_ID[c] && e[c] > 0) clean[c] = Math.min(20, Number(e[c]) || 0); });
+      if (Object.keys(clean).length) out.tokens[normText(t)] = clean;
+    });
+    Object.keys(raw.phrases || {}).slice(0, 300).forEach(function (p) {
+      var e = raw.phrases[p];
+      if (e && CAT_BY_ID[e.c]) out.phrases[normText(p)] = { c: e.c, n: Math.min(20, Number(e.n) || 1) };
+    });
+    return out;
+  }
+
+  // Returns { id, source: 'learned' | 'keyword' | 'typo' | 'default', hint }.
+  function detectCategory(text, learned) {
+    var joined = normText(text);
+    var toks = joined ? joined.split(' ') : [];
+    var res = scoreText(CAT_INDEX, joined, toks);
+    if (learned) {
+      var key = learnKey(text);
+      var ph = key && learned.phrases[key];
+      if (ph) bump(res, ph.c, 8 + Math.min(ph.n, 4), 0, 'learned');
+      toks.forEach(function (t, pos) {
+        var e = learned.tokens[t];
+        if (!e) return;
+        var c = null;
+        for (var k in e) if (e[k] > 0 && (!c || e[k] > e[c])) c = k;
+        if (c) bump(res, c, 2 + Math.min(e[c], 6) * 0.5, pos, 'learned');
+      });
+    }
+    var best = bestOf(res);
+    if (!best) return { id: 'General', source: 'default', hint: null };
+    var kinds = res[best].kinds;
+    var source = (kinds.learned || 0) >= (kinds.kw || 0) && kinds.learned ? 'learned' : (kinds.kw ? 'keyword' : 'typo');
+    return { id: best, source: source, hint: source === 'typo' ? res[best].hint : null };
+  }
+
+  function detectDirection(text, category, sign) {
+    if (sign === '+') return 'in';
+    if (sign === '-') return 'out';
+    var joined = normText(text);
+    var res = scoreText(DIR_INDEX, joined, joined ? joined.split(' ') : []);
+    var i = res['in'] || { score: 0, first: Infinity }, o = res.out || { score: 0, first: Infinity };
+    if (i.score > o.score) return 'in';
+    if (o.score > i.score) return 'out';
+    if (i.score > 0) return i.first <= o.first ? 'in' : 'out';
+    return (category === 'Salary' || category === 'Freelance') ? 'in' : 'out';
   }
 
   /* ======================================================================
@@ -1014,8 +1307,24 @@
     view: { y: now0.getFullYear(), m: now0.getMonth() },
     filter: 'all',
     forced: null,
-    sample: false
+    sample: false,
+    learned: { tokens: {}, phrases: {} }
   };
+
+  // Accepts ISO dates plus the Android app's "Sep 24, 2026" and d/m/yyyy.
+  function parseLooseDate(v) {
+    if (isValidISO(v)) return v;
+    if (typeof v === 'number' && isFinite(v)) {
+      var d = v < 100000 ? new Date(v * 86400000) : new Date(v);          // epoch-day or epoch-ms
+      return isNaN(d) ? null : toISO(new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+    }
+    var s = String(v || '').trim(), m, dt;
+    if ((m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s))) dt = makeDate(+m[1], +m[2] - 1, +m[3]);
+    else if ((m = /^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$/.exec(s)) && monthIndex(m[1]) >= 0) dt = makeDate(+m[3], monthIndex(m[1]), +m[2]);
+    else if ((m = /^(\d{1,2})\s+([A-Za-z]{3,9})\.?,?\s+(\d{4})$/.exec(s)) && monthIndex(m[2]) >= 0) dt = makeDate(+m[3], monthIndex(m[2]), +m[1]);
+    else if ((m = /^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/.exec(s))) dt = makeDate(+m[3], +m[2] - 1, +m[1]);
+    return dt ? toISO(dt) : null;
+  }
 
   function sanitizeTxn(t) {
     if (!t || typeof t !== 'object') return null;
@@ -1029,8 +1338,8 @@
       var match = CATEGORIES.filter(function (c) { return c.id.toLowerCase() === cat.toLowerCase(); })[0];
       cat = match ? match.id : 'General';
     }
-    var date = isValidISO(t.date) ? t.date : todayISO();
-    var title = String(t.title != null ? t.title : (t.description || '')).replace(/\s+/g, ' ').trim().slice(0, 120);
+    var date = parseLooseDate(t.date) || todayISO();
+    var title = String(t.title != null ? t.title : (t.text != null ? t.text : (t.description || ''))).replace(/\s+/g, ' ').trim().slice(0, 120);
     return {
       id: String(t.id || uid()).slice(0, 64),
       title: title || catOf(cat).label,
@@ -1175,10 +1484,12 @@
       rate: state.rate,
       transactions: state.txns,
       ui: { showAll: state.showAll, filter: state.filter },
-      sample: state.sample
+      sample: state.sample,
+      learned: state.learned
     });
     store.set(dataKey(), payload);
     renderStorage();
+    scheduleAutoBackup();
   }
 
   // Loads the active profile's ledger. Returns false when it has none yet.
@@ -1191,6 +1502,7 @@
       state.txns = sanitizeList(d.transactions);
       state.rate = validRate(d.rate) || DEFAULT_RATE;
       state.sample = !!d.sample && state.txns.length > 0;
+      state.learned = sanitizeLearned(d.learned);
       if (d.ui) {
         state.showAll = !!d.ui.showAll;
         if (d.ui.filter === 'in' || d.ui.filter === 'out' || d.ui.filter === 'all') state.filter = d.ui.filter;
@@ -1204,62 +1516,178 @@
      ====================================================================== */
   var MON = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
   var WD = 'sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:r(?:s(?:day)?)?)?|fri(?:day)?|sat(?:urday)?';
+  var WD_FULL = 'sunday|monday|tuesday|wednesday|thursday|friday|saturday';
   var PREP = '(?:\\b(?:on|at|dated|dt\\.?|for)\\s+)?(?:\\bthe\\s+)?';
 
+  /* ---------- Input normalization ---------- */
+  var SMALL_NUM = {
+    zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12,
+    thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30,
+    forty: 40, fourty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90
+  };
+  var SCALE_NUM = { hundred: 100, thousand: 1000, lakh: 100000, lakhs: 100000, lac: 100000, lacs: 100000, million: 1000000 };
+
+  function numKind(word) {
+    var m = /^([A-Za-z]+(?:-[A-Za-z]+)?|\d+(?:\.\d+)?)([.,!?;:)]*)$/.exec(word);
+    if (!m) return null;
+    var core = m[1].toLowerCase(), trail = m[2];
+    if (/^\d/.test(core)) return { kind: 'd', val: parseFloat(core), trail: trail };
+    if (SMALL_NUM[core] != null) return { kind: 'n', val: SMALL_NUM[core], trail: trail };
+    if (SCALE_NUM[core]) return { kind: 's', val: SCALE_NUM[core], trail: trail };
+    if (core.indexOf('-') !== -1) {
+      var parts = core.split('-');
+      if (parts.every(function (p) { return SMALL_NUM[p] != null; })) {
+        return { kind: 'n', val: parts.reduce(function (s, p) { return s + SMALL_NUM[p]; }, 0), trail: trail };
+      }
+      return null;
+    }
+    if (core === 'and') return { kind: 'and', trail: trail };
+    if (core === 'a' || core === 'an') return { kind: 'a', trail: trail };
+    return null;
+  }
+
+  // "two hundred and fifty" → 250, "twenty-five" → 25, "1.5 lakh" → 150000.
+  function scanNumberRun(words, start) {
+    var total = 0, cur = 0, hasWord = false, end = -1, prev = null, trail = '';
+    for (var i = start; i < words.length; i++) {
+      var k = numKind(words[i]);
+      if (!k) break;
+      var next = i + 1 < words.length ? numKind(words[i + 1]) : null;
+      if (k.kind === 'and') {
+        if (!prev || prev.kind !== 's' || !next || (next.kind !== 'n' && next.kind !== 'd')) break;
+        prev = k;
+        continue;
+      }
+      if (k.kind === 'a') {
+        if (i !== start || !next || next.kind !== 's') break;
+        cur = 1; prev = k; end = i;
+        continue;
+      }
+      if (k.kind === 'd' && i !== start) break;
+      if (k.kind === 'd' && (!next || next.kind !== 's')) break;
+      if (k.kind === 's') {
+        if (!prev) break;
+        if (k.val === 100) cur = (cur || 1) * 100;
+        else { total += (cur || 1) * k.val; cur = 0; }
+        hasWord = true;
+      } else {
+        if (k.kind === 'n') hasWord = true;
+        cur += k.val;
+      }
+      prev = k;
+      end = i;
+      trail = k.trail;
+      if (trail) break;
+    }
+    if (!hasWord || end < start || (prev && (prev.kind === 'and' || prev.kind === 'a'))) return null;
+    if (end < 0) return null;
+    return { text: String(total + cur) + trail, end: end };
+  }
+
+  function wordsToNumbers(s) {
+    var parts = s.split(/(\s+)/), words = [], seps = [];
+    for (var k = 0; k < parts.length; k++) { if (k % 2 === 0) words.push(parts[k]); else seps.push(parts[k]); }
+    var out = '', w = 0;
+    while (w < words.length) {
+      var run = words[w] ? scanNumberRun(words, w) : null;
+      if (run) { out += run.text + (seps[run.end] || ''); w = run.end + 1; }
+      else { out += words[w] + (seps[w] || ''); w++; }
+    }
+    return out;
+  }
+
+  function normalizeInput(raw) {
+    var s = String(raw || '');
+    s = s.replace(/[٠-٩]/g, function (c) { return String(c.charCodeAt(0) - 0x0660); })      // Arabic-Indic digits
+      .replace(/[۰-۹]/g, function (c) { return String(c.charCodeAt(0) - 0x06F0); })          // Persian digits
+      .replace(/٫/g, '.').replace(/٬/g, ',')                                                 // Arabic decimal / thousands
+      .replace(/﷼/g, ' SAR ').replace(/ر\.\s?س\.?/g, ' SAR ')                                    // ﷼ and ر.س
+      .replace(/₹/g, ' INR ')
+      .replace(/[‒-―]/g, '-').replace(/[   ]/g, ' ')
+      .replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+    return wordsToNumbers(s);
+  }
+
+  /* ---------- Dates ---------- */
+  function daysAgo(n) { var d = todayDate(); d.setDate(d.getDate() - n); return d; }
+  function recentWeekday(name, strictlyPast) {
+    var target = weekdayIndex(name);
+    for (var i = strictlyPast ? 1 : 0; i <= 7; i++) { var d = daysAgo(i); if (d.getDay() === target) return d; }
+    return null;
+  }
+
   var DATE_PATTERNS = [
-    { // 2026-09-24
-      re: new RegExp(PREP + '\\b(\\d{4})-(\\d{1,2})-(\\d{1,2})\\b', 'gi'),
+    { // 2026-09-24, 2026/09/24
+      re: new RegExp(PREP + '\\b(\\d{4})[-/.](\\d{1,2})[-/.](\\d{1,2})\\b', 'gi'),
       fn: function (m) { return makeDate(+m[1], +m[2] - 1, +m[3]); }
     },
-    { // 24/09, 24-09-2026, 09/24 (auto-swaps when unambiguous)
+    { // 24/09, 24-09-2026, 09/24 (swapped only when unambiguous)
       re: new RegExp(PREP + '\\b(\\d{1,2})[\\/\\-](\\d{1,2})(?:[\\/\\-](\\d{4}|\\d{2}))?\\b', 'gi'),
-      fn: function (m, refYear) {
+      fn: function (m, ctx) {
         var a = +m[1], b = +m[2], day = a, mon = b;
         if (a <= 12 && b > 12) { day = b; mon = a; }
-        var y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : refYear;
+        var y = m[3] ? (m[3].length === 2 ? 2000 + +m[3] : +m[3]) : ctx.refYear;
         return makeDate(y, mon - 1, day);
+      }
+    },
+    { // 24.09.2026 (dots need a year, or a lead-in like "on", so 5.50 stays an amount)
+      re: new RegExp('(?:(?:\\b(?:on|dated|dt\\.?)\\s+)(\\d{1,2})\\.(\\d{1,2})(?:\\.(\\d{4}|\\d{2}))?|' + PREP + '\\b(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}))\\b', 'gi'),
+      fn: function (m, ctx) {
+        var d = +(m[1] || m[4]), mo = +(m[2] || m[5]), yr = m[3] || m[6];
+        var y = yr ? (yr.length === 2 ? 2000 + +yr : +yr) : ctx.refYear;
+        return makeDate(y, mo - 1, d);
       }
     },
     { // 24th sep, 24 of september, 24sep 2026
       re: new RegExp(PREP + '\\b(\\d{1,2})(?:st|nd|rd|th)?\\s*(?:of\\s+)?(' + MON + ')\\b\\.?(?:,?\\s*((?:19|20)\\d{2})\\b)?', 'gi'),
-      fn: function (m, refYear) { return makeDate(m[3] ? +m[3] : refYear, monthIndex(m[2]), +m[1]); }
+      fn: function (m, ctx) { return makeDate(m[3] ? +m[3] : ctx.refYear, monthIndex(m[2]), +m[1]); }
     },
     { // sep 24, september 24th, sep 24, 2026
       re: new RegExp(PREP + '\\b(' + MON + ')\\b\\.?\\s*(\\d{1,2})(?:st|nd|rd|th)?\\b(?:,?\\s*((?:19|20)\\d{2})\\b)?', 'gi'),
-      fn: function (m, refYear) { return makeDate(m[3] ? +m[3] : refYear, monthIndex(m[1]), +m[2]); }
+      fn: function (m, ctx) { return makeDate(m[3] ? +m[3] : ctx.refYear, monthIndex(m[1]), +m[2]); }
     },
-    { // last friday
-      re: new RegExp(PREP + '\\blast\\s+(' + WD + ')\\b', 'gi'),
+    { // on the 24th, on 24th (month of the selected day)
+      re: /(?:\bon\s+(?:the\s+)?|\bthe\s+)(\d{1,2})(?:st|nd|rd|th)\b/gi,
+      fn: function (m, ctx) { return makeDate(ctx.refYear, ctx.refMonth, +m[1]); }
+    },
+    { // 3 days ago, a week ago, 2 weeks back
+      re: new RegExp(PREP + '\\b(\\d{1,3}|an?)\\s+(days?|weeks?)\\s+(?:ago|back|before)\\b', 'gi'),
       fn: function (m) {
-        var target = weekdayIndex(m[1]);
-        var d = todayDate();
-        for (var i = 1; i <= 7; i++) {
-          d.setDate(d.getDate() - 1);
-          if (d.getDay() === target) return d;
-        }
-        return null;
+        var n = /^an?$/i.test(m[1]) ? 1 : +m[1];
+        return n <= 400 ? daysAgo(n * (/^week/i.test(m[2]) ? 7 : 1)) : null;
       }
     },
-    { // yesterday, today, day before yesterday, tomorrow
-      re: new RegExp(PREP + '\\b(day\\s+before\\s+yesterday|yesterday|today|tonight|this\\s+morning|tomorrow)\\b', 'gi'),
+    { // last week
+      re: /\blast\s+week\b/gi,
+      fn: function () { return daysAgo(7); }
+    },
+    { // last friday, this monday, on tue, past sunday
+      re: new RegExp('\\b(last|this|on|past)\\s+(' + WD + ')\\b', 'gi'),
+      fn: function (m) { return recentWeekday(m[2], /^(last|past)$/i.test(m[1])); }
+    },
+    { // monday (full names only when bare)
+      re: new RegExp('\\b(' + WD_FULL + ')\\b', 'gi'),
+      fn: function (m) { return recentWeekday(m[1], false); }
+    },
+    { // yesterday, yday, today, tonight, last night, day before yesterday, tomorrow
+      re: new RegExp(PREP + '\\b(day\\s+before\\s+yesterday|yesterday|yday|yest|today|tonight|this\\s+(?:morning|afternoon|evening)|last\\s+night|tomorrow|tmrw|tmr)\\b', 'gi'),
       fn: function (m) {
         var w = m[1].toLowerCase().replace(/\s+/g, ' ');
-        var d = todayDate();
-        if (w === 'yesterday') d.setDate(d.getDate() - 1);
-        else if (w === 'day before yesterday') d.setDate(d.getDate() - 2);
-        else if (w === 'tomorrow') d.setDate(d.getDate() + 1);
-        return d;
+        if (w === 'day before yesterday') return daysAgo(2);
+        if (w === 'yesterday' || w === 'yday' || w === 'yest' || w === 'last night') return daysAgo(1);
+        if (w === 'tomorrow' || w === 'tmrw' || w === 'tmr') return daysAgo(-1);
+        return todayDate();
       }
     }
   ];
 
-  function extractDate(text, refYear) {
+  function extractDate(text, ctx) {
     for (var p = 0; p < DATE_PATTERNS.length; p++) {
       var pat = DATE_PATTERNS[p];
       pat.re.lastIndex = 0;
       var m;
       while ((m = pat.re.exec(text)) !== null) {
-        var d = pat.fn(m, refYear);
+        var d = pat.fn(m, ctx);
         if (d) return { date: toISO(d), start: m.index, end: m.index + m[0].length };
         if (m[0].length === 0) pat.re.lastIndex++;
       }
@@ -1267,105 +1695,131 @@
     return null;
   }
 
-  // Picks the amount: a number tagged with SAR/SR/riyal wins, otherwise the largest number.
-  function extractAmount(text) {
-    var re = /(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\s?k(?![a-z]))?/gi;
-    var m, best = null;
+  /* ---------- Amounts ---------- */
+  var SAR_BEFORE = /(?:sar|sr|s\.r\.?|riyals?|rials?|ryals?)\s*$/i;
+  var SAR_AFTER = /^\s*(?:sar|sr|s\.r\.?|riyals?|rials?|ryals?)(?![a-z])/i;
+  var INR_BEFORE = /(?:inr|rs\.?|rupees?)\s*$/i;
+  var INR_AFTER = /^\s*(?:inr|rs\.?|rupees?|\/-)(?![a-z])/i;
+  var SCALE_SUFFIX = { k: 1000, thousand: 1000, lakh: 100000, lakhs: 100000, lac: 100000, lacs: 100000, million: 1000000 };
+
+  // Choose the amount: a quantity × price wins, then a number tagged with a
+  // currency, then the largest number. INR amounts are converted to SAR.
+  function extractAmount(text, rate) {
+    var re = /(\d{1,3}(?:,\d{2})+,\d{3}|\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?(\s?(?:k|lakhs?|lacs?|thousand|million)(?![a-z]))?/gi;
+    var m, best = null, cands = [];
     while ((m = re.exec(text)) !== null) {
-      var v = parseFloat(m[1].replace(/,/g, '') + (m[2] || ''));
-      if (m[3]) v *= 1000;
-      if (!(v > 0) || v > MAX_AMOUNT) continue;
       var before = text.slice(0, m.index);
       var after = text.slice(m.index + m[0].length);
-      if (/[a-z]$/i.test(before)) continue; // glued to a word, e.g. "A4", "5g"
-      var cur = /(?:sar|sr|riyals?|﷼)\s*$/i.test(before) || /^\s*(?:sar|sr|riyals?|﷼)(?![a-z])/i.test(after);
+      if (/[a-z]$/i.test(before) && !/(?:sar|sr|rs|inr)$/i.test(before)) continue;           // A4, iphone15
+      if (/[\d:]$/.test(before) || /^\s?%/.test(after) || /^:\d/.test(after)) continue;       // 10:30, 20%
+      if (/^\s?(?:am|pm|st|nd|rd|th|x\d)\b/i.test(after)) continue;                           // 5pm, 2nd
+      if (/^[a-z]/i.test(after) && !/^(?:sar|sr|inr|rs|riyals?|rupees?|k\b)/i.test(after)) continue; // 5g, 15pro
+      var v = parseFloat(m[1].replace(/,/g, '') + (m[2] || ''));
+      if (m[3]) v *= SCALE_SUFFIX[m[3].trim().toLowerCase()] || 1;
+      if (!(v > 0)) continue;
+      var cur = (SAR_BEFORE.test(before) || SAR_AFTER.test(after)) ? 'SAR' : ((INR_BEFORE.test(before) || INR_AFTER.test(after)) ? 'INR' : null);
       var sign = /(?:^|\s)\+\s*$/.test(before) ? '+' : (/(?:^|\s)[-−]\s*$/.test(before) ? '-' : '');
-      var cand = { value: round2(v), cur: cur, sign: sign };
-      if (!best || (cand.cur && !best.cur) || (cand.cur === best.cur && cand.value > best.value)) best = cand;
+      cands.push({ value: v, cur: cur, sign: sign, index: m.index });
     }
-    return best;
+
+    var product = null;
+    var px = /(\d+(?:\.\d+)?)\s*(?:x|×|\*)\s*(\d+(?:\.\d+)?)(?![\d.])/i.exec(text)
+      || /\b(\d{1,3})\s+[a-z][a-z\s]{0,30}?@\s*(\d+(?:\.\d+)?)/i.exec(text)
+      || /\b(\d{1,3})\s+[a-z][a-z\s]{0,30}?\b(\d+(?:\.\d+)?)\s*(?:sar|sr|riyals?)?\s*(?:each|per\s+(?:piece|item|unit)|apiece)\b/i.exec(text);
+    if (px && +px[1] > 0 && +px[1] <= 1000 && +px[2] > 0) product = { value: +px[1] * +px[2], qty: +px[1], unit: +px[2] };
+    if (!cands.length && !product) return null;
+    if (!cands.length) cands.push({ value: product.value, cur: null, sign: '', index: 0 });
+
+    cands.forEach(function (c) {
+      if (!best || (c.cur && !best.cur) || (!!c.cur === !!best.cur && c.value > best.value)) best = c;
+    });
+    var cur = best.cur;
+    var raw = product ? product.value : best.value;
+    if (product && !cur) cur = (cands.filter(function (c) { return c.cur; })[0] || {}).cur || null;
+    var sar = cur === 'INR' ? raw / (rate || DEFAULT_RATE) : raw;
+    if (sar > MAX_AMOUNT) return null;
+    return {
+      value: round2(sar),
+      cur: cur,
+      original: round2(raw),
+      sign: (cands.filter(function (c) { return c.sign; })[0] || {}).sign || '',
+      product: product
+    };
   }
 
-  function detectCategory(text) {
-    var best = null;
-    for (var i = 0; i < CATEGORIES.length; i++) {
-      var c = CATEGORIES[i];
-      if (!c.kwRe.length) continue;
-      var s = scoreKeywords(text, c.kwRe);
-      if (s.score > 0 && (!best || s.score > best.score || (s.score === best.score && s.first < best.first))) {
-        best = { id: c.id, score: s.score, first: s.first };
-      }
-    }
-    return best ? best.id : 'General';
-  }
-
-  function detectDirection(text, category, sign) {
-    if (sign === '+') return 'in';
-    if (sign === '-') return 'out';
-    var i = scoreKeywords(text, IN_RE), o = scoreKeywords(text, OUT_RE);
-    if (i.score > o.score) return 'in';
-    if (o.score > i.score) return 'out';
-    if (i.score > 0) return i.first <= o.first ? 'in' : 'out';
-    return (category === 'Salary' || category === 'Freelance') ? 'in' : 'out';
-  }
-
-  var SMALL_WORDS = { a: 1, an: 1, and: 1, at: 1, by: 1, for: 1, from: 1, in: 1, of: 1, on: 1, or: 1, the: 1, to: 1, with: 1, via: 1 };
-  var UPPER_WORDS = { sar: 1, sr: 1, atm: 1, stc: 1, kfc: 1, inr: 1, usd: 1, aed: 1, ikea: 1 };
+  /* ---------- Titles ---------- */
+  var SMALL_WORDS = { a: 1, an: 1, and: 1, at: 1, by: 1, for: 1, from: 1, in: 1, of: 1, on: 1, or: 1, the: 1, to: 1, with: 1, via: 1, x: 1, each: 1, per: 1 };
+  var CASED_WORDS = { iphone: 'iPhone', ipad: 'iPad', airpods: 'AirPods', macbook: 'MacBook', icloud: 'iCloud', youtube: 'YouTube', chatgpt: 'ChatGPT', whatsapp: 'WhatsApp' };
+  var UPPER_WORDS = {
+    sar: 1, sr: 1, inr: 1, usd: 1, aed: 1, atm: 1, stc: 1, kfc: 1, emi: 1, sec: 1, nwc: 1, dth: 1, lpg: 1, mri: 1, upi: 1, neft: 1,
+    imps: 1, gst: 1, vat: 1, ikea: 1, 'h&m': 1, lc: 1, dg: 1, id: 1, tv: 1, ac: 1, eos: 1
+  };
 
   function titleCase(s) {
     return s.split(' ').map(function (w, i) {
       if (!w) return w;
       var lw = w.toLowerCase();
       if (UPPER_WORDS[lw]) return w.toUpperCase();
+      if (CASED_WORDS[lw]) return CASED_WORDS[lw];
       if (i > 0 && SMALL_WORDS[lw]) return lw;
       return w.charAt(0).toUpperCase() + w.slice(1);
     }).join(' ');
   }
 
   function cleanTitle(t) {
-    t = t.replace(/(^|\s)[+−-]\s*(?=\d)/g, '$1');                         // drop explicit sign
-    t = t.replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').replace(/\(\s*\)/g, '').trim();
-    t = t.replace(/^(?:[,;:.\-–—+&\s]|and\b|then\b|also\b)+/i, '').trim();
+    t = t.replace(/(^|\s)[+−-]\s*(?=\d)/g, '$1')                        // explicit sign
+      .replace(/\/-/g, '')                                             // 500/-
+      .replace(/([!?.,])\1+/g, '$1')                                  // !!! → !
+      .replace(/\s+/g, ' ').replace(/\s+([,.;:!?])/g, '$1').replace(/\(\s*\)/g, '').trim();
+    t = t.replace(/^(?:[,;:.\-–—+&*•·\s]|and\b|then\b|also\b|plus\b)+/i, '').trim();
     var prev;
     do {
       prev = t;
-      t = t.replace(/(?:[\s,;:\-–—.&]+|\b(?:on|at|of|the|for|in|from|to|by|dated|dt|and|then)\s*)$/i, '').trim();
+      t = t.replace(/(?:[\s,;:\-–—.&!?]+|\b(?:on|at|of|the|for|in|from|to|by|dated|dt|and|then)\s*)$/i, '').trim();
     } while (t !== prev && t.length);
+    var letters = t.replace(/[^A-Za-z]/g, '');
+    if (letters.length >= 4 && letters === letters.toUpperCase()) t = t.toLowerCase();  // SHOUTED INPUT
     return titleCase(t).slice(0, 120);
   }
 
   function analyzeSegment(seg, ctx) {
-    var text = seg.replace(/\s+/g, ' ').trim();
-    var dt = extractDate(text, ctx.refYear);
+    var text = seg.replace(/\s+/g, ' ').trim()
+      .replace(/^(?:[-*•·▪►]\s+|\d{1,2}[.)]\s+(?=[a-z]))/i, '');        // bullets and "1." list markers
+    var dt = extractDate(text, ctx);
     var date = ctx.anchor, dated = false;
     if (dt) {
       text = (text.slice(0, dt.start) + ' ' + text.slice(dt.end)).replace(/\s+/g, ' ').trim();
       date = dt.date;
       dated = true;
     }
-    var amt = extractAmount(text);
-    var lower = text.toLowerCase();
-    var autoCat = detectCategory(lower);
-    var category = ctx.forced || autoCat;
-    var type = detectDirection(lower, category, amt ? amt.sign : '');
+    var amt = extractAmount(text, ctx.rate);
+    var det = detectCategory(text, ctx.learned);
+    var category = ctx.forced || det.id;
+    var type = detectDirection(text, category, amt ? amt.sign : '');
     var title = cleanTitle(text) || catOf(category).label;
     return {
       title: title,
       amount: amt ? amt.value : 0,
+      currency: amt ? amt.cur : null,
+      original: amt ? amt.original : 0,
+      product: amt ? amt.product : null,
       type: type,
       category: category,
       forced: !!ctx.forced,
+      catSource: ctx.forced ? 'forced' : det.source,
+      catHint: det.hint,
       date: date,
       dated: dated,
       inherited: false
     };
   }
 
-  // Splits on new lines, semicolons, commas (not thousands separators) and "and"/"&"/"then".
-  var SPLIT_RE = /(\r?\n|;|,(?!\d)|\s+(?:and|&|then)\s+)/i;
+  // Splits on new lines, semicolons, bullets, commas (not thousands
+  // separators) and joining words: and, &, then, plus, also, after that, +.
+  var SPLIT_RE = /(\r?\n|;|•|,(?!\d)|\s+(?:and|&|then|plus|also|after\s+that|\+)\s+)/i;
 
   function parseInput(raw, ctx) {
-    var parts = String(raw || '').split(SPLIT_RE);
+    var parts = normalizeInput(raw).split(SPLIT_RE);
     var segs = [], delims = [];
     for (var i = 0; i < parts.length; i++) {
       if (i % 2 === 0) segs.push(parts[i] || ''); else delims.push(parts[i]);
@@ -1416,7 +1870,11 @@
   }
 
   function parserContext() {
-    return { anchor: state.selected, refYear: fromISO(state.selected).getFullYear(), forced: state.forced };
+    var d = fromISO(state.selected);
+    return {
+      anchor: state.selected, refYear: d.getFullYear(), refMonth: d.getMonth(),
+      forced: state.forced, rate: state.rate, learned: state.learned
+    };
   }
 
   /* ======================================================================
@@ -1446,6 +1904,8 @@
     sampleBar: $('sampleBar'), sampleFresh: $('sampleFresh'), sampleKeep: $('sampleKeep'),
     appRoot: $('appRoot'), profChip: $('profChip'), profAv: $('profAv'), profName: $('profName'), profMenu: $('profMenu'),
     gate: $('gate'), gateBody: $('gateBody'), gateHome: $('gateHome'),
+    cloudBox: $('cloudBox'), cloudStatus: $('cloudStatus'), cloudBackupBtn: $('cloudBackupBtn'), cloudSetupBtn: $('cloudSetupBtn'),
+    sheetOverlay: $('sheetOverlay'), sheetTitle: $('sheetTitle'), sheetBody: $('sheetBody'),
     overlay: $('editOverlay'), editForm: $('editForm'), editClose: $('editClose'),
     edDesc: $('edDesc'), edAmt: $('edAmt'), edInr: $('edInr'), edDate: $('edDate'), edFlow: $('edFlow'),
     edCat: $('edCat'), edErr: $('edErr'), edDelete: $('edDelete'), edCancel: $('edCancel'),
@@ -1528,6 +1988,13 @@
       '<span>Undated items → <b>' + esc(fmtDate(state.selected)) + '</b></span>';
   }
 
+  function catNote(it) {
+    if (it.forced) return ' · forced';
+    if (it.catSource === 'learned') return ' · learned';
+    if (it.catSource === 'typo' && it.catHint) return ' · ' + it.catHint;
+    return '';
+  }
+
   function renderPreview() {
     var raw = el.nl.value;
     if (!raw.trim()) { el.preview.classList.remove('on'); el.preview.innerHTML = ''; return; }
@@ -1539,7 +2006,10 @@
       html += '<div class="pv-item">' +
         '<div class="tx-ico" style="width:28px;height:28px;border-radius:8px;background:var(--' + it.type + '-soft);color:var(--' + it.type + ')">' + (it.type === 'in' ? ICON_IN : ICON_OUT) + '</div>' +
         '<div style="min-width:0"><div class="pv-title">' + esc(it.title) + '</div>' +
-        '<div class="pv-meta"><span class="tag" style="--cat:' + c.color + '">' + esc(c.label) + (it.forced ? ' · forced' : '') + '</span><span>' + esc(when) + '</span></div></div>' +
+        '<div class="pv-meta"><span class="tag" style="--cat:' + c.color + '">' + esc(c.label) + esc(catNote(it)) + '</span><span>' + esc(when) + '</span>' +
+        (it.currency === 'INR' ? '<span class="pv-note">₹' + esc(sarNumber(it.original)) + ' converted</span>' : '') +
+        (it.product ? '<span class="pv-note">' + esc(it.product.qty + ' × ' + sarNumber(it.product.unit)) + '</span>' : '') +
+        '</div></div>' +
         '<div class="pv-amt num" style="color:var(--' + it.type + ')">' + (it.type === 'in' ? '+' : '−') + fmtSAR(it.amount) +
         '<span class="inr">' + fmtINR(toINR(it.amount)) + '</span></div>' +
         '</div>';
@@ -1721,6 +2191,7 @@
     renderBreakdown();
     renderPreview();
     renderStorage();
+    renderCloud();
   }
 
   /* ======================================================================
@@ -1749,12 +2220,14 @@
   function offerUndo(msg, snap, extra) {
     var prevRate = extra && extra.rate;
     var prevSample = extra && 'sample' in extra ? extra.sample : state.sample;
+    var prevLearned = extra && extra.learned;
     toast(msg, {
       tone: 'ok',
       actionLabel: 'Undo',
       onAction: function () {
         state.txns = snap;
         state.sample = prevSample;
+        if (prevLearned) state.learned = prevLearned;
         if (prevRate) { state.rate = prevRate; el.rate.value = prevRate.toFixed(2); }
         persist();
         renderAll();
@@ -1785,6 +2258,7 @@
         id: uid(), title: it.title, amount: it.amount, type: it.type,
         category: it.category, date: it.date, createdAt: stamp + i
       };
+      if (it.forced) learnCategory(it.title, it.category);   // the user told us what this is
       state.txns.push(t);
       flashIds[t.id] = true;
       if (it.date !== state.selected) elsewhere[it.date] = true;
@@ -1853,18 +2327,23 @@
     } catch (e) { fail(); }
   }
 
-  function exportData() {
-    var payload = {
+  function buildBackupPayload() {
+    return {
       app: 'smart-spend-inflow-analyzer',
-      version: 1,
+      version: 2,
       exportedAt: new Date().toISOString(),
       profile: active ? active.name : null,
       baseCurrency: 'SAR',
       rate: state.rate,
       transactions: sortTxns(state.txns).map(function (t) {
         return { id: t.id, title: t.title, amount: t.amount, type: t.type, category: t.category, date: t.date, createdAt: t.createdAt };
-      })
+      }),
+      learned: state.learned
     };
+  }
+
+  function exportData() {
+    var payload = buildBackupPayload();
     var n = new Date();
     var stamp = n.getFullYear() + pad(n.getMonth() + 1) + pad(n.getDate()) + '-' + pad(n.getHours()) + pad(n.getMinutes()) + pad(n.getSeconds());
     var slug = active ? active.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') : '';
@@ -1912,24 +2391,35 @@
         toast('Not a valid JSON file.', { tone: 'err' });
         return;
       }
-      var arr = Array.isArray(data) ? data : (data && Array.isArray(data.transactions) ? data.transactions : null);
-      if (!arr) { toast('No transactions array found in that file.', { tone: 'err' }); return; }
-      var clean = sanitizeList(arr);
-      if (arr.length && !clean.length) { toast('None of the records in that file were valid.', { tone: 'err' }); return; }
-      var snap = snapshot();
-      var prevRate = state.rate;
-      var prevSample = state.sample;
-      state.txns = clean;
-      state.sample = false;
-      var r = !Array.isArray(data) && validRate(data.rate);
-      if (r) { state.rate = r; el.rate.value = r.toFixed(2); }
-      persist();
-      renderAll();
-      var dropped = arr.length - clean.length;
-      offerUndo('Restored ' + plural(clean.length, 'record') + (dropped ? ' · ' + dropped + ' skipped' : '') + (r ? ' · rate ' + r.toFixed(2) : ''), snap, { rate: prevRate, sample: prevSample });
+      if (isEncryptedBackup(data)) {
+        openBackupFromEnvelope(data, file.name);
+        return;
+      }
+      if (applyBackup(data)) closeSheet();
     };
     reader.onerror = function () { toast('Could not read that file.', { tone: 'err' }); };
     reader.readAsText(file);
+  }
+
+  // Replaces the ledger with a backup in any supported shape: this app's
+  // export, a bare array, or the Android app's { transactions, exchangeRate }.
+  function applyBackup(data) {
+    var arr = Array.isArray(data) ? data : (data && Array.isArray(data.transactions) ? data.transactions : null);
+    if (!arr) { toast('That backup has no transactions list.', { tone: 'err' }); return false; }
+    var clean = sanitizeList(arr);
+    if (arr.length && !clean.length) { toast('None of the records in that backup were valid.', { tone: 'err' }); return false; }
+    var snap = snapshot();
+    var prev = { rate: state.rate, sample: state.sample, learned: state.learned };
+    state.txns = clean;
+    state.sample = false;
+    var r = !Array.isArray(data) && (validRate(data.rate) || validRate(data.exchangeRate));
+    if (r) { state.rate = r; el.rate.value = r.toFixed(2); }
+    if (!Array.isArray(data) && data.learned) state.learned = sanitizeLearned(data.learned);
+    persist();
+    renderAll();
+    var dropped = arr.length - clean.length;
+    offerUndo('Restored ' + plural(clean.length, 'record') + (dropped ? ' · ' + dropped + ' skipped' : '') + (r ? ' · rate ' + r.toFixed(2) : ''), snap, prev);
+    return true;
   }
 
   var clearTimer = null;
@@ -2088,6 +2578,8 @@
     if (errs.length) { el.edErr.textContent = 'Please enter ' + errs.join(', ') + '.'; return; }
 
     var moved = t.date !== date;
+    var newCat = CAT_BY_ID[el.edCat.value] ? el.edCat.value : 'General';
+    if (newCat !== t.category) learnCategory(title, newCat);
     t.title = title.slice(0, 120);
     t.amount = amount;
     t.date = date;
@@ -2130,6 +2622,7 @@
     closeProfMenu();
     closeEdit();
     hideToast();
+    closeSheet();
     gate.open = true;
     gate.screen = screen;
     gate.pid = opts.pid || null;
@@ -2228,7 +2721,7 @@
         '<h2 class="g-title">' + (isDel ? 'Delete this profile?' : 'Reset the PIN?') + '</h2>' +
         '<div class="g-warn">' + (isDel
           ? 'This removes <b>' + esc(p.name) + '</b>, its PIN and its ' + plural(n, 'record') + ' from this device.'
-          : 'A PIN can’t be recovered. Resetting erases <b>' + esc(p.name) + '</b>’s ' + plural(n, 'record') + ' on this device, then you choose a new PIN.') +
+          : 'A PIN can’t be recovered. Resetting erases <b>' + esc(p.name) + '</b>’s ' + plural(n, 'record') + ' and online-backup settings on this device, then you choose a new PIN. Online backups stay on GitHub and can be restored with the backup passphrase.') +
         ' Take a Backup first if you might need the data. This can’t be undone.</div>' +
         '<div class="g-actions">' +
         '<button type="button" class="btn" data-act="' + (isDel ? 'cancel-change' : 'back-pin') + '" data-autofocus>Cancel</button>' +
@@ -2347,6 +2840,7 @@
     state.filter = 'all';
     state.forced = null;
     state.sample = false;
+    state.learned = { tokens: {}, phrases: {} };
     flashIds = {};
     el.nl.value = '';
     disarmClear();
@@ -2364,9 +2858,13 @@
     renderPills();
     renderAll();
     closeGate();
+    scheduleAutoBackup(4000);
   }
 
   function leaveProfile() {
+    clearTimeout(autoTimer);
+    cloud.pass = null;
+    cloud.passFor = null;
     active = null;
     sessionSet(null);
     resetLedgerState();
@@ -2418,6 +2916,7 @@
       case 'confirm-reset':
         if (!p || !armGate()) return;
         store.set(DATA_PREFIX + p.id, JSON.stringify({ v: 1, rate: DEFAULT_RATE, transactions: [] }));
+        forgetCloud(p.id);   // someone without the PIN must not inherit the token or passphrase
         p.salt = null; p.pinHash = null; p.fails = 0; p.lockUntil = 0;
         saveProfiles();
         showGate('pin', { pid: p.id, mode: 'create', step: 'new', err: 'Data erased. Choose a new PIN.', info: true });
@@ -2428,6 +2927,7 @@
         if (profiles.last === p.id) profiles.last = null;
         saveProfiles();
         store.remove(DATA_PREFIX + p.id);
+        forgetCloud(p.id);
         leaveProfile();
         showGate('list');
         toast('Deleted profile ' + p.name);
@@ -2512,6 +3012,567 @@
 
     // Show the way back to the download page only when served from the Pages site.
     if (/^https?:$/.test(location.protocol) && /\/app\/?(index\.html)?$/.test(location.pathname)) el.gateHome.hidden = false;
+  }
+
+  /* ======================================================================
+     Online backup: a private GitHub repository, encrypted on this device
+     (AES-256-GCM, key from the passphrase via PBKDF2-SHA256). GitHub only
+     ever receives ciphertext. The token and, if the person chooses, the
+     passphrase are kept in this browser for this profile only.
+     ====================================================================== */
+  var CLOUD_PREFIX = 'smartspend.cloud.p.';
+  var DEFAULT_BACKUP_REPO = 'khajamohiddinsyed/smart-spend-backups';
+  var TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new';
+  var GH_API = 'https://api.github.com';
+  var ENC_FORMAT = 'smartspend-encrypted';
+  var KDF_ITERATIONS = 310000;
+  var AUTO_BACKUP_MS = 20 * 3600 * 1000;
+  var cloud = { busy: false, pass: null, passFor: null };     // passphrase kept for this session only
+  var autoTimer = null;
+
+  function cloudCfg(pid) {
+    pid = pid || (active && active.id);
+    if (!pid) return null;
+    try {
+      var c = JSON.parse(store.get(CLOUD_PREFIX + pid) || 'null');
+      return c && c.repo && c.token ? c : null;
+    } catch (e) { return null; }
+  }
+  function saveCloudCfg(pid, c) { store.set(CLOUD_PREFIX + pid, JSON.stringify(c)); }
+  function forgetCloud(pid) {
+    store.remove(CLOUD_PREFIX + pid);
+    if (cloud.passFor === pid) { cloud.pass = null; cloud.passFor = null; }
+  }
+  function sessionPass(c) {
+    if (c && c.pass) return c.pass;
+    return active && cloud.passFor === active.id ? cloud.pass : null;
+  }
+  function rememberSessionPass(pass) { cloud.pass = pass; cloud.passFor = active ? active.id : null; }
+  function hasWebCrypto() { return !!(window.crypto && window.crypto.subtle && window.TextEncoder && window.TextDecoder); }
+  function profileSlug(p) { return p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || p.id; }
+  function repoParts(repo) {
+    var m = /^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))\/([A-Za-z0-9._-]{1,100})$/.exec(String(repo || '').trim());
+    return m ? { owner: m[1], name: m[2] } : null;
+  }
+  function isEncryptedBackup(d) { return !!(d && d.format === ENC_FORMAT && d.data && d.iv && d.salt); }
+  function ledgerHash() { return sha256Hex(JSON.stringify([state.rate, state.txns])); }
+  function timeAgo(ms) {
+    var s = Math.round((Date.now() - ms) / 1000);
+    if (s < 60) return 'just now';
+    var m = Math.round(s / 60);
+    if (m < 60) return m + ' min ago';
+    var h = Math.round(m / 60);
+    if (h < 24) return plural(h, 'hour') + ' ago';
+    var d = Math.round(h / 24);
+    return d < 30 ? plural(d, 'day') + ' ago' : fmtDate(toISO(new Date(ms)));
+  }
+
+  /* ---------- Encryption ---------- */
+  function bufToB64(buf) {
+    var b = new Uint8Array(buf), s = '';
+    for (var i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function b64ToBytes(b64) {
+    var s = atob(b64), b = new Uint8Array(s.length);
+    for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+    return b;
+  }
+  function deriveKey(pass, salt, iterations) {
+    return window.crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']).then(function (base) {
+      return window.crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
+        base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+    });
+  }
+  function encryptBackup(obj, pass) {
+    var salt = window.crypto.getRandomValues(new Uint8Array(16));
+    var iv = window.crypto.getRandomValues(new Uint8Array(12));
+    return deriveKey(pass, salt, KDF_ITERATIONS).then(function (key) {
+      return window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+    }).then(function (ct) {
+      return {
+        format: ENC_FORMAT, v: 1, cipher: 'AES-256-GCM', kdf: 'PBKDF2-SHA256', iterations: KDF_ITERATIONS,
+        salt: bufToB64(salt), iv: bufToB64(iv), data: bufToB64(ct), createdAt: new Date().toISOString()
+      };
+    });
+  }
+  function decryptBackup(env, pass) {
+    var iterations = Math.min(Math.max(Number(env.iterations) || KDF_ITERATIONS, 100000), 5000000);
+    var salt, iv, data;
+    try { salt = b64ToBytes(env.salt); iv = b64ToBytes(env.iv); data = b64ToBytes(env.data); }
+    catch (e) { return Promise.reject(new Error('That backup file is damaged.')); }
+    return deriveKey(pass, salt, iterations).then(function (key) {
+      return window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, data);
+    }).then(function (pt) {
+      try { return JSON.parse(new TextDecoder().decode(pt)); }
+      catch (e) { throw new Error('That backup opened, but its contents are damaged.'); }
+    }, function () {
+      var err = new Error('That passphrase doesn’t open this backup.');
+      err.code = 'bad_pass';
+      throw err;
+    });
+  }
+  function checkPass(c, pass) {
+    if (!c || !c.verifier) return Promise.resolve(true);
+    return decryptBackup(c.verifier, pass).then(function () { return true; }, function (e) {
+      if (e.code === 'bad_pass') return false;
+      throw e;
+    });
+  }
+
+  /* ---------- GitHub contents API ---------- */
+  function ghError(status, body, repo) {
+    var msg = '';
+    try { msg = JSON.parse(body).message || ''; } catch (e) { msg = ''; }
+    if (status === 401) return 'GitHub rejected the access token. It may be mistyped, expired or revoked.';
+    if (status === 403 && /rate limit/i.test(msg)) return 'GitHub is limiting requests right now. Wait a few minutes and try again.';
+    if (status === 403) return 'The token isn’t allowed to write to ' + repo + '. Give it “Contents: Read and write” for that repository.';
+    if (status === 404) return 'Repository ' + repo + ' wasn’t found, or the token can’t access it.';
+    if (status === 409 || status === 422) return 'GitHub refused the upload' + (msg ? ' (' + msg + ')' : '') + '. Try again.';
+    return 'GitHub returned an error (' + status + (msg ? ': ' + msg : '') + ').';
+  }
+  function gh(c, method, path, body, raw) {
+    var rp = repoParts(c.repo);
+    var headers = {
+      'Authorization': 'Bearer ' + c.token,
+      'Accept': raw ? 'application/vnd.github.raw+json' : 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+    if (body) headers['Content-Type'] = 'application/json';
+    return fetch(GH_API + '/repos/' + rp.owner + '/' + rp.name + path, {
+      method: method, headers: headers, body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'
+    }).then(function (res) {
+      if (res.ok) return raw ? res.text() : res.json();
+      return res.text().then(function (t) { var e = new Error(ghError(res.status, t, c.repo)); e.status = res.status; throw e; });
+    }, function () {
+      throw new Error('Couldn’t reach GitHub. Check the internet connection and try again.');
+    });
+  }
+  function contentsPath(p) { return '/contents/' + p.split('/').map(encodeURIComponent).join('/'); }
+  function backupFolder(p) { return 'backups/' + profileSlug(p); }
+  function newBackupName() {
+    var d = new Date();
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' +
+      pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z-' + randomHex(2) + '.json';
+  }
+  function backupDate(name) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})(\d{2})(\d{2})Z/.exec(name);
+    return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])) : null;
+  }
+  function listBackups(c, p) {
+    return gh(c, 'GET', contentsPath(backupFolder(p))).then(function (arr) {
+      return (Array.isArray(arr) ? arr : [])
+        .filter(function (f) { return f.type === 'file' && /\.json$/i.test(f.name) && backupDate(f.name); })
+        .map(function (f) { return { name: f.name, path: f.path, size: f.size, date: backupDate(f.name) }; })
+        .sort(function (a, b) { return a.name < b.name ? 1 : -1; });
+    }, function (e) {
+      if (e.status !== 404) throw e;
+      return gh(c, 'GET', '').then(function () { return []; });   // repository fine, folder not created yet
+    });
+  }
+  function fetchBackup(c, path) {
+    return gh(c, 'GET', contentsPath(path), null, true).then(function (t) {
+      try { return JSON.parse(t); } catch (e) { throw new Error('That backup file isn’t valid JSON.'); }
+    });
+  }
+  function uploadBackup(c, p, env) {
+    var path = backupFolder(p) + '/' + newBackupName();
+    return gh(c, 'PUT', contentsPath(path), {
+      message: 'Smart Spend backup (' + profileSlug(p) + ')',
+      content: btoa(JSON.stringify(env))
+    }).then(function () { return path; });
+  }
+
+  /* ---------- Backing up ---------- */
+  function cloudBackup(auto) {
+    if (!active) return;
+    var p = active, c = cloudCfg(p.id);
+    if (!c) { if (!auto) openCloudSetup(); return; }
+    if (cloud.busy) return;
+    if (!hasWebCrypto()) {
+      if (!auto) toast('This browser can’t encrypt backups on this page. Open the app from its https address.', { tone: 'err' });
+      return;
+    }
+    var pass = sessionPass(c);
+    if (!pass) { if (!auto) askPassphrase(function () { cloudBackup(false); }); return; }
+    cloud.busy = true;
+    renderCloud();
+    var hash = ledgerHash(), count = state.txns.length;
+    encryptBackup(buildBackupPayload(), pass).then(function (env) {
+      return uploadBackup(c, p, env);
+    }).then(function (path) {
+      var fresh = cloudCfg(p.id) || c;
+      fresh.lastAt = Date.now(); fresh.lastHash = hash; fresh.lastPath = path; fresh.lastError = null;
+      saveCloudCfg(p.id, fresh);
+      if (active && active.id === p.id) toast((auto ? 'Automatic backup saved online' : 'Backed up online') + ' · ' + plural(count, 'record'), { tone: 'ok' });
+    }).catch(function (e) {
+      var fresh = cloudCfg(p.id);
+      if (fresh) { fresh.lastError = e.message; saveCloudCfg(p.id, fresh); }
+      if (active && active.id === p.id) toast((auto ? 'Automatic backup failed. ' : '') + e.message, { tone: 'err', duration: 8000 });
+    }).then(function () {
+      cloud.busy = false;
+      renderCloud();
+    });
+  }
+
+  function scheduleAutoBackup(delay) {
+    clearTimeout(autoTimer);
+    autoTimer = setTimeout(function () {
+      var c = active && cloudCfg(active.id);
+      if (!c || !c.auto || cloud.busy || !sessionPass(c) || !hasWebCrypto()) return;
+      if (Date.now() - (c.lastAt || 0) < AUTO_BACKUP_MS) return;
+      if (!state.txns.length && !c.lastHash) return;
+      if (ledgerHash() === c.lastHash) return;
+      cloudBackup(true);
+    }, delay || 8000);
+  }
+
+  function renderCloud() {
+    var c = active && cloudCfg(active.id);
+    el.cloudBox.classList.toggle('on', !!c);
+    el.cloudBackupBtn.hidden = !c;
+    el.cloudBackupBtn.disabled = cloud.busy;
+    el.cloudBackupBtn.textContent = cloud.busy ? 'Backing up…' : 'Back up now';
+    el.cloudSetupBtn.textContent = c ? 'Settings' : 'Set up';
+    if (!c) {
+      el.cloudStatus.textContent = 'Not set up. Keep an encrypted copy in a private GitHub repository.';
+      return;
+    }
+    var parts = [c.repo, c.lastAt ? 'last backup ' + timeAgo(c.lastAt) : 'no backup yet'];
+    if (c.auto) parts.push(sessionPass(c) ? 'daily automatic backup on' : 'automatic backup waits for the passphrase');
+    if (c.lastError) parts.push('last attempt failed');
+    el.cloudStatus.textContent = parts.join(' · ');
+  }
+
+  /* ---------- Sheet (settings, restore list, passphrase) ---------- */
+  var sheet = { open: false, kind: null, data: {} }, sheetFocus = null;
+
+  function openSheet(kind, title, data) {
+    closeProfMenu();
+    if (!sheet.open) sheetFocus = document.activeElement;
+    sheet.open = true;
+    sheet.kind = kind;
+    sheet.data = data || {};
+    el.sheetTitle.textContent = title;
+    renderSheet();
+    el.sheetOverlay.classList.add('open');
+    el.sheetOverlay.setAttribute('aria-hidden', 'false');
+    setTimeout(function () {
+      var f = el.sheetBody.querySelector('[data-autofocus]') || el.sheetBody.querySelector('input, button');
+      if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } }
+    }, 40);
+  }
+  function closeSheet() {
+    if (!sheet.open) return;
+    sheet.open = false;
+    sheet.kind = null;
+    sheet.data = {};
+    el.sheetOverlay.classList.remove('open');
+    el.sheetOverlay.setAttribute('aria-hidden', 'true');
+    el.sheetBody.innerHTML = '';
+    if (sheetFocus && document.body.contains(sheetFocus)) { try { sheetFocus.focus(); } catch (e) { /* ignore */ } }
+  }
+  function renderSheet() {
+    if (sheet.kind === 'setup') el.sheetBody.innerHTML = setupSheetHtml();
+    else if (sheet.kind === 'restore') el.sheetBody.innerHTML = restoreSheetHtml();
+    else if (sheet.kind === 'pass') el.sheetBody.innerHTML = passSheetHtml();
+  }
+  function sheetMsg(id, text, tone) {
+    var m = $(id);
+    if (!m) return;
+    m.className = 'sh-msg' + (tone ? ' ' + tone : '');
+    m.textContent = text;
+  }
+
+  // Settings
+  function openCloudSetup() {
+    if (!active) return;
+    openSheet('setup', 'Online backup', {});
+  }
+  function setupSheetHtml() {
+    var c = cloudCfg();
+    var hasPass = !!sessionPass(c);
+    return '<p class="sh-intro">Backups are encrypted on this device with your passphrase before they leave it. GitHub only stores the encrypted file, in a private repository you control. This setting is just for <b>' + esc(active.name) + '</b>.</p>' +
+      '<form class="sh-form" id="cloudForm" novalidate>' +
+      '<label class="field">Private repository' +
+      '<input class="input" id="cfRepo" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="owner/repository" value="' + esc(c ? c.repo : DEFAULT_BACKUP_REPO) + '"' + (c ? '' : ' data-autofocus') + '>' +
+      '<span class="sh-help">This profile’s backups are saved in <code>backups/' + esc(profileSlug(active)) + '/</code> inside it.</span></label>' +
+      '<label class="field">GitHub access token' +
+      '<input class="input" id="cfToken" type="password" autocomplete="off" spellcheck="false" placeholder="' + (c ? 'Saved. Leave blank to keep it' : 'github_pat_…') + '"' + (c ? ' data-autofocus' : '') + '>' +
+      '<span class="sh-help">Create a fine-grained token at <a href="' + TOKEN_URL + '" target="_blank" rel="noopener noreferrer">github.com/settings/personal-access-tokens</a>:' +
+      '<ol class="sh-steps"><li>Repository access: <b>Only select repositories</b>, then pick the backup repository.</li>' +
+      '<li>Permissions, Repository: <b>Contents</b> set to <b>Read and write</b>.</li>' +
+      '<li>Generate the token, copy it and paste it here.</li></ol></span></label>' +
+      '<label class="field">Backup passphrase' +
+      '<input class="input" id="cfPass" type="password" autocomplete="new-password" placeholder="' + (hasPass ? 'Saved. Leave blank to keep it' : 'At least 8 characters') + '">' +
+      '<span class="sh-help">Use the same passphrase for ' + esc(active.name) + ' on every device. It can’t be recovered, and without it the backups can’t be opened.</span></label>' +
+      '<label class="field">Confirm passphrase<input class="input" id="cfPass2" type="password" autocomplete="new-password"></label>' +
+      '<label class="sh-check"><input type="checkbox" id="cfRemember"' + (!c || c.remember ? ' checked' : '') + '><span>Remember the passphrase on this device' +
+      '<small>Needed for automatic backups. Turn it off on a shared device and you’ll be asked each time.</small></span></label>' +
+      '<label class="sh-check"><input type="checkbox" id="cfAuto"' + (!c || c.auto ? ' checked' : '') + '><span>Back up automatically' +
+      '<small>At most once a day, and only when something changed.</small></span></label>' +
+      '<div class="sh-msg" id="cfMsg" role="alert"></div>' +
+      '<div class="sh-actions">' + (c ? '<button type="button" class="btn danger" data-sheet="disconnect">Disconnect</button>' : '') +
+      '<span class="spacer"></span><button type="button" class="btn" data-sheet="close">Cancel</button>' +
+      '<button type="submit" class="btn primary" id="cfSave">Save and test</button></div>' +
+      '</form>';
+  }
+  function saveCloudSetup() {
+    var p = active;
+    if (!p) return;
+    var old = cloudCfg(p.id);
+    var repo = $('cfRepo').value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+    var token = $('cfToken').value.trim() || (old ? old.token : '');
+    var pass = $('cfPass').value, pass2 = $('cfPass2').value;
+    var remember = $('cfRemember').checked, auto = $('cfAuto').checked;
+    var fail = function (t) { sheetMsg('cfMsg', t); $('cfSave').disabled = false; };
+    if (!repoParts(repo)) { fail('Enter the repository as owner/name, for example ' + DEFAULT_BACKUP_REPO + '.'); return; }
+    if (!token) { fail('Paste a GitHub access token.'); return; }
+    if (token.length < 20 || /\s/.test(token)) { fail('That doesn’t look like a GitHub access token.'); return; }
+    var keep = !pass && !pass2 ? sessionPass(old) : null;
+    if (!keep) {
+      if (pass.length < 8) { fail('Choose a passphrase of at least 8 characters.'); return; }
+      if (pass !== pass2) { fail('The two passphrases don’t match.'); return; }
+    }
+    var usePass = keep || pass;
+    if (!hasWebCrypto()) { fail('This browser can’t encrypt on this page. Open the app from its https address.'); return; }
+    var sameRepo = old && old.repo === repo;
+    var cfg = {
+      repo: repo, token: token, auto: auto, remember: remember, pass: remember ? usePass : null,
+      verifier: null, lastAt: sameRepo ? old.lastAt : 0, lastHash: sameRepo ? old.lastHash : null,
+      lastPath: sameRepo ? old.lastPath : null, lastError: null
+    };
+    $('cfSave').disabled = true;
+    sheetMsg('cfMsg', 'Checking access to ' + repo + '…', 'info');
+    var found = [];
+    gh(cfg, 'GET', '').then(function (info) {
+      if (info && info.private === false && !sheet.data.publicOk) { var e = new Error('public'); e.code = 'public'; throw e; }
+      return listBackups(cfg, p);
+    }).then(function (list) {
+      found = list;
+      if (!list.length || sheet.data.mismatchOk) return null;
+      return fetchBackup(cfg, list[0].path).then(function (env) {
+        return isEncryptedBackup(env) ? decryptBackup(env, usePass) : null;
+      }).catch(function (e) {
+        if (e.code === 'bad_pass') { var er = new Error('mismatch'); er.code = 'mismatch'; throw er; }
+        throw e;
+      });
+    }).then(function () {
+      return encryptBackup({ check: 'smart-spend' }, usePass);
+    }).then(function (verifier) {
+      if (!active || active.id !== p.id) return;
+      cfg.verifier = verifier;
+      saveCloudCfg(p.id, cfg);
+      rememberSessionPass(usePass);
+      closeSheet();
+      renderCloud();
+      if (!state.txns.length && found.length) {
+        openRestore();
+        toast('Connected · found ' + plural(found.length, 'backup') + ' for ' + p.name + '. Pick one to restore.', { tone: 'ok', duration: 6000 });
+      } else if (state.txns.length && (!cfg.lastHash || cfg.lastHash !== ledgerHash())) {
+        toast('Online backup connected', { tone: 'ok' });
+        cloudBackup(false);
+      } else {
+        toast('Online backup connected', { tone: 'ok' });
+      }
+    }).catch(function (e) {
+      if (e.code === 'public') {
+        sheet.data.publicOk = true;
+        fail(repo + ' is a public repository. The backups would still be encrypted, but a private repository is safer. Press Save again to use it anyway.');
+      } else if (e.code === 'mismatch') {
+        sheet.data.mismatchOk = true;
+        fail('This passphrase doesn’t open the latest backup for ' + p.name + '. Enter the passphrase you used before, or press Save again to start a new set of backups with this one.');
+      } else {
+        fail(e.message);
+      }
+    });
+  }
+  function disconnectCloud() {
+    if (!active) return;
+    if (!sheet.data.armDisconnect) {
+      sheet.data.armDisconnect = true;
+      var b = el.sheetBody.querySelector('[data-sheet="disconnect"]');
+      if (b) { b.classList.add('armed'); b.textContent = 'Tap again to disconnect'; }
+      return;
+    }
+    forgetCloud(active.id);
+    closeSheet();
+    renderCloud();
+    toast('Online backup disconnected. The token and passphrase were removed from this device; backups on GitHub are untouched.');
+  }
+
+  // Passphrase prompt (backing up when the passphrase isn't remembered)
+  function askPassphrase(onOk) {
+    openSheet('pass', 'Backup passphrase', { onOk: onOk });
+  }
+  function passSheetHtml() {
+    var c = cloudCfg();
+    return '<p class="sh-intro">Enter the backup passphrase for <b>' + esc(active.name) + '</b>.</p>' +
+      '<form class="sh-form" id="passForm" novalidate>' +
+      '<label class="field">Passphrase<input class="input" id="ppInput" type="password" autocomplete="current-password" data-autofocus></label>' +
+      '<label class="sh-check"><input type="checkbox" id="ppRemember"' + (c && c.remember ? ' checked' : '') + '><span>Remember on this device</span></label>' +
+      '<div class="sh-msg" id="ppMsg" role="alert"></div>' +
+      '<div class="sh-actions"><span class="spacer"></span><button type="button" class="btn" data-sheet="close">Cancel</button>' +
+      '<button type="submit" class="btn primary" id="ppGo">Continue</button></div></form>';
+  }
+  function submitPassphrase() {
+    var c = cloudCfg(), pass = $('ppInput').value, remember = $('ppRemember').checked;
+    var onOk = sheet.data.onOk;
+    if (!pass) { sheetMsg('ppMsg', 'Enter the passphrase.'); return; }
+    $('ppGo').disabled = true;
+    sheetMsg('ppMsg', 'Checking…', 'info');
+    checkPass(c, pass).then(function (ok) {
+      if (!ok) { $('ppGo').disabled = false; sheetMsg('ppMsg', 'That isn’t the passphrase set for this profile’s backups.'); return; }
+      rememberSessionPass(pass);
+      if (c) { c.remember = remember; c.pass = remember ? pass : null; saveCloudCfg(active.id, c); }
+      closeSheet();
+      renderCloud();
+      if (onOk) onOk();
+    }, function (e) { $('ppGo').disabled = false; sheetMsg('ppMsg', e.message); });
+  }
+
+  // Restore: online backups newest first, plus a file from this device
+  function openRestore() {
+    if (!active) return;
+    openSheet('restore', 'Restore a backup', { status: cloudCfg() ? 'loading' : 'off', list: [], pick: null });
+    loadBackupList();
+  }
+  function openBackupFromEnvelope(env, name) {
+    if (!hasWebCrypto()) { toast('This browser can’t open encrypted backups on this page. Open the app from its https address.', { tone: 'err' }); return; }
+    openSheet('restore', 'Restore a backup', { status: 'off', list: [], pick: { label: name || 'Backup file', envelope: env, stage: 'unlock' } });
+    tryUnlockPick(null);
+  }
+  function loadBackupList() {
+    var c = cloudCfg(), p = active;
+    if (!c) return;
+    sheet.data.status = 'loading';
+    renderSheet();
+    listBackups(c, p).then(function (list) {
+      if (!sheet.open || sheet.kind !== 'restore' || active !== p) return;
+      sheet.data.status = 'ready';
+      sheet.data.list = list;
+      renderSheet();
+    }, function (e) {
+      if (!sheet.open || sheet.kind !== 'restore') return;
+      sheet.data.status = 'error';
+      sheet.data.error = e.message;
+      renderSheet();
+    });
+  }
+  function backupWhen(d) {
+    return fmtDateLong(toISO(d)) + ' · ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function restoreSheetHtml() {
+    var d = sheet.data, c = cloudCfg(), html = '';
+    if (d.pick) return pickHtml(d.pick);
+    html += '<div class="sh-sec"><span>Online backups</span>' + (c ? '<button type="button" class="btn sm" data-sheet="refresh">Refresh</button>' : '') + '</div>';
+    if (!c) {
+      html += '<div class="bk-empty">Online backup isn’t set up for ' + esc(active.name) + '. <button type="button" class="btn sm" data-sheet="setup">Set up</button></div>';
+    } else if (d.status === 'loading') {
+      html += '<div class="bk-empty">Loading backups from ' + esc(c.repo) + '…</div>';
+    } else if (d.status === 'error') {
+      html += '<div class="bk-empty">' + esc(d.error) + ' <button type="button" class="btn sm" data-sheet="refresh">Try again</button></div>';
+    } else if (!d.list.length) {
+      html += '<div class="bk-empty">No online backups for ' + esc(active.name) + ' yet. Use <b>Back up now</b> to make the first one.</div>';
+    } else {
+      html += '<div class="bk-list">' + d.list.slice(0, 60).map(function (b, i) {
+        return '<div class="bk' + (i === 0 ? ' latest' : '') + '"><div><b>' + esc(backupWhen(b.date)) + (i === 0 ? ' <span class="pill-s">Latest</span>' : '') + '</b>' +
+          '<span>' + esc(timeAgo(b.date.getTime())) + ' · ' + (b.size / 1024).toFixed(1) + ' KB</span></div>' +
+          '<button type="button" class="btn sm' + (i === 0 ? ' primary' : '') + '" data-sheet="pick" data-path="' + esc(b.path) + '">Restore</button></div>';
+      }).join('') + '</div>';
+      if (d.list.length > 60) html += '<div class="sh-help" style="margin-top:8px">Showing the 60 most recent of ' + d.list.length + ' backups.</div>';
+    }
+    html += '<div class="sh-sec"><span>From a file</span></div>' +
+      '<div class="sh-actions" style="margin-top:0"><button type="button" class="btn" data-sheet="file">Choose a backup file…</button></div>' +
+      '<div class="sh-help" style="margin-top:8px">Works with files from Backup, encrypted online backups and the Android app’s backups.</div>';
+    return html;
+  }
+  function pickHtml(pk) {
+    var back = '<button type="button" class="g-back" data-sheet="unpick">' + ICON_BACK + 'All backups</button>';
+    if (pk.stage === 'fetching') return back + '<div class="bk-empty">Downloading ' + esc(pk.label) + '…</div>';
+    if (pk.stage === 'error') return back + '<div class="bk-empty">' + esc(pk.error) + '</div>';
+    if (pk.stage === 'unlock') {
+      return back + '<div class="bk-confirm"><b>' + esc(pk.label) + '</b><span>This backup is encrypted. Enter the passphrase it was saved with.</span>' +
+        '<form class="sh-form" id="unlockForm" novalidate><input class="input" id="ulPass" type="password" autocomplete="current-password" placeholder="Backup passphrase" data-autofocus>' +
+        '<div class="sh-msg" id="ulMsg" role="alert">' + esc(pk.error || '') + '</div>' +
+        '<div class="sh-actions" style="margin-top:0"><span class="spacer"></span><button type="submit" class="btn primary" id="ulGo">Open backup</button></div></form></div>';
+    }
+    var p = pk.payload, arr = Array.isArray(p) ? p : (p && p.transactions) || [];
+    var r = !Array.isArray(p) && (validRate(p.rate) || validRate(p.exchangeRate));
+    var from = !Array.isArray(p) && p.exportedAt && !isNaN(new Date(p.exportedAt)) ? backupWhen(new Date(p.exportedAt)) : pk.label;
+    return back + '<div class="bk-confirm"><b>' + esc(from) + '</b>' +
+      '<span>' + plural(arr.length, 'record') + (r ? ' · rate 1 SAR = ₹' + r.toFixed(2) : '') + (p.profile ? ' · saved by ' + esc(p.profile) : '') + '</span>' +
+      '<span>Restoring replaces the ' + plural(state.txns.length, 'record') + ' in ' + esc(active.name) + ' on this device. You can undo it right after.</span>' +
+      '<div class="sh-actions" style="margin-top:0"><span class="spacer"></span><button type="button" class="btn" data-sheet="unpick">Cancel</button>' +
+      '<button type="button" class="btn primary" data-sheet="apply" data-autofocus>Restore this backup</button></div></div>';
+  }
+  function pickBackup(path) {
+    var c = cloudCfg(), item = sheet.data.list.filter(function (b) { return b.path === path; })[0];
+    if (!c || !item) return;
+    var pk = sheet.data.pick = { label: backupWhen(item.date), stage: 'fetching' };
+    renderSheet();
+    fetchBackup(c, item.path).then(function (data) {
+      if (sheet.data.pick !== pk) return;
+      if (isEncryptedBackup(data)) { pk.envelope = data; pk.stage = 'unlock'; tryUnlockPick(null); }
+      else { pk.payload = data; pk.stage = 'ready'; renderSheet(); }
+    }, function (e) {
+      if (sheet.data.pick !== pk) return;
+      pk.stage = 'error'; pk.error = e.message; renderSheet();
+    });
+  }
+  // Tries the typed passphrase, else the one this session already knows.
+  function tryUnlockPick(typed) {
+    var pk = sheet.data.pick;
+    if (!pk || !pk.envelope) return;
+    var pass = typed || sessionPass(cloudCfg());
+    if (!pass) { pk.stage = 'unlock'; renderSheet(); return; }
+    if (typed) { var go = $('ulGo'); if (go) go.disabled = true; sheetMsg('ulMsg', 'Opening…', 'info'); }
+    decryptBackup(pk.envelope, pass).then(function (payload) {
+      if (sheet.data.pick !== pk) return;
+      pk.payload = payload; pk.stage = 'ready'; pk.error = null;
+      renderSheet();
+    }, function (e) {
+      if (sheet.data.pick !== pk) return;
+      pk.stage = 'unlock';
+      pk.error = typed ? e.message : '';
+      renderSheet();
+    });
+  }
+
+  function bindCloud() {
+    el.cloudSetupBtn.addEventListener('click', openCloudSetup);
+    el.cloudBackupBtn.addEventListener('click', function () { cloudBackup(false); });
+    el.sheetOverlay.addEventListener('mousedown', function (e) { if (e.target === el.sheetOverlay) closeSheet(); });
+    el.sheetOverlay.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-sheet]');
+      if (!b) return;
+      var act = b.getAttribute('data-sheet');
+      if (act === 'close') closeSheet();
+      else if (act === 'disconnect') disconnectCloud();
+      else if (act === 'setup') openCloudSetup();
+      else if (act === 'refresh') loadBackupList();
+      else if (act === 'pick') pickBackup(b.getAttribute('data-path'));
+      else if (act === 'unpick') { sheet.data.pick = null; renderSheet(); if (!sheet.data.list.length && cloudCfg()) loadBackupList(); }
+      else if (act === 'file') el.importFile.click();
+      else if (act === 'apply') {
+        var pk = sheet.data.pick;
+        if (pk && pk.payload && applyBackup(pk.payload)) closeSheet();
+      }
+    });
+    el.sheetOverlay.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (e.target.id === 'cloudForm') saveCloudSetup();
+      else if (e.target.id === 'passForm') submitPassphrase();
+      else if (e.target.id === 'unlockForm') {
+        var v = $('ulPass').value;
+        if (!v) { sheetMsg('ulMsg', 'Enter the passphrase.'); return; }
+        tryUnlockPick(v);
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (sheet.open && e.key === 'Escape') { e.preventDefault(); closeSheet(); }
+    });
   }
 
   function trapFocus(e) {
@@ -2610,7 +3671,7 @@
 
     // Data vault
     el.exportBtn.addEventListener('click', exportData);
-    el.importBtn.addEventListener('click', function () { el.importFile.click(); });
+    el.importBtn.addEventListener('click', openRestore);
     el.importFile.addEventListener('change', function () {
       var f = el.importFile.files && el.importFile.files[0];
       importData(f);
@@ -2674,6 +3735,7 @@
   renderPills();
   bind();
   bindGate();
+  bindCloud();
   renderAll();
 
   // A reload in the same tab stays unlocked; a new tab or visit asks for the PIN.
