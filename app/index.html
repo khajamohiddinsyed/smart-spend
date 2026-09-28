@@ -784,7 +784,8 @@
             <span id="cloudStatus">Not set up</span>
           </div>
           <div class="cloud-acts">
-            <button type="button" class="btn sm primary" id="cloudBackupBtn" hidden>Back up now</button>
+            <button type="button" class="btn sm primary" id="cloudSyncBtn" hidden>Sync now</button>
+            <button type="button" class="btn sm" id="cloudBackupBtn" hidden>Back up now</button>
             <button type="button" class="btn sm" id="cloudSetupBtn">Set up</button>
           </div>
         </div>
@@ -1308,7 +1309,9 @@
     filter: 'all',
     forced: null,
     sample: false,
-    learned: { tokens: {}, phrases: {} }
+    learned: { tokens: {}, phrases: {} },
+    deleted: {},            // id → deletion time (sync tombstones)
+    rateUpdatedAt: 0
   };
 
   // Accepts ISO dates plus the Android app's "Sep 24, 2026" and d/m/yyyy.
@@ -1347,7 +1350,8 @@
       type: type,
       category: cat,
       date: date,
-      createdAt: Number(t.createdAt) || Date.now()
+      createdAt: Number(t.createdAt) || Date.now(),
+      updatedAt: Number(t.updatedAt) || Number(t.createdAt) || Date.now()
     };
   }
 
@@ -1361,6 +1365,31 @@
       out.push(t);
     });
     return out;
+  }
+
+  function sanitizeDeleted(raw) {
+    var out = {};
+    if (raw && typeof raw === 'object') Object.keys(raw).slice(0, 20000).forEach(function (id) {
+      var ts = Number(raw[id]);
+      if (id && ts > 0) out[String(id).slice(0, 64)] = ts;
+    });
+    return out;
+  }
+
+  function recContent(t) { return [t.title, t.amount, t.type, t.category, t.date].join('|'); }
+  // Stamps a wholesale ledger change so sync treats it as the newest edit:
+  // new or changed records get updatedAt = now (all of them when `force`),
+  // and records that disappeared get a tombstone.
+  function reconcile(before, after, force) {
+    var now = Date.now(), prev = {}, keep = {};
+    before.forEach(function (t) { prev[t.id] = t; });
+    after.forEach(function (t) {
+      keep[t.id] = 1;
+      var b = prev[t.id];
+      if (force || !b || recContent(b) !== recContent(t)) t.updatedAt = now;
+      delete state.deleted[t.id];
+    });
+    before.forEach(function (t) { if (!keep[t.id]) state.deleted[t.id] = now; });
   }
 
   function validRate(v) { v = parseFloat(v); return isFinite(v) && v > 0 && v < 100000 ? v : null; }
@@ -1485,11 +1514,14 @@
       transactions: state.txns,
       ui: { showAll: state.showAll, filter: state.filter },
       sample: state.sample,
-      learned: state.learned
+      learned: state.learned,
+      deleted: state.deleted,
+      rateUpdatedAt: state.rateUpdatedAt
     });
     store.set(dataKey(), payload);
     renderStorage();
     scheduleAutoBackup();
+    scheduleSync();
   }
 
   // Loads the active profile's ledger. Returns false when it has none yet.
@@ -1503,6 +1535,8 @@
       state.rate = validRate(d.rate) || DEFAULT_RATE;
       state.sample = !!d.sample && state.txns.length > 0;
       state.learned = sanitizeLearned(d.learned);
+      state.deleted = sanitizeDeleted(d.deleted);
+      state.rateUpdatedAt = Number(d.rateUpdatedAt) || 0;
       if (d.ui) {
         state.showAll = !!d.ui.showAll;
         if (d.ui.filter === 'in' || d.ui.filter === 'out' || d.ui.filter === 'all') state.filter = d.ui.filter;
@@ -1904,7 +1938,7 @@
     sampleBar: $('sampleBar'), sampleFresh: $('sampleFresh'), sampleKeep: $('sampleKeep'),
     appRoot: $('appRoot'), profChip: $('profChip'), profAv: $('profAv'), profName: $('profName'), profMenu: $('profMenu'),
     gate: $('gate'), gateBody: $('gateBody'), gateHome: $('gateHome'),
-    cloudBox: $('cloudBox'), cloudStatus: $('cloudStatus'), cloudBackupBtn: $('cloudBackupBtn'), cloudSetupBtn: $('cloudSetupBtn'),
+    cloudBox: $('cloudBox'), cloudStatus: $('cloudStatus'), cloudBackupBtn: $('cloudBackupBtn'), cloudSetupBtn: $('cloudSetupBtn'), cloudSyncBtn: $('cloudSyncBtn'),
     sheetOverlay: $('sheetOverlay'), sheetTitle: $('sheetTitle'), sheetBody: $('sheetBody'),
     overlay: $('editOverlay'), editForm: $('editForm'), editClose: $('editClose'),
     edDesc: $('edDesc'), edAmt: $('edAmt'), edInr: $('edInr'), edDate: $('edDate'), edFlow: $('edFlow'),
@@ -2225,10 +2259,11 @@
       tone: 'ok',
       actionLabel: 'Undo',
       onAction: function () {
+        reconcile(state.txns, snap);
         state.txns = snap;
         state.sample = prevSample;
         if (prevLearned) state.learned = prevLearned;
-        if (prevRate) { state.rate = prevRate; el.rate.value = prevRate.toFixed(2); }
+        if (prevRate) { state.rate = prevRate; state.rateUpdatedAt = Date.now(); el.rate.value = prevRate.toFixed(2); }
         persist();
         renderAll();
         toast('Restored previous state');
@@ -2256,7 +2291,7 @@
     res.items.forEach(function (it, i) {
       var t = {
         id: uid(), title: it.title, amount: it.amount, type: it.type,
-        category: it.category, date: it.date, createdAt: stamp + i
+        category: it.category, date: it.date, createdAt: stamp + i, updatedAt: stamp + i
       };
       if (it.forced) learnCategory(it.title, it.category);   // the user told us what this is
       state.txns.push(t);
@@ -2285,6 +2320,7 @@
     var snap = snapshot();
     var t = state.txns[idx];
     state.txns.splice(idx, 1);
+    state.deleted[t.id] = Date.now();
     persist();
     renderAll();
     offerUndo('Deleted “' + (t.title.length > 28 ? t.title.slice(0, 27) + '…' : t.title) + '”', snap);
@@ -2410,10 +2446,11 @@
     if (arr.length && !clean.length) { toast('None of the records in that backup were valid.', { tone: 'err' }); return false; }
     var snap = snapshot();
     var prev = { rate: state.rate, sample: state.sample, learned: state.learned };
+    reconcile(state.txns, clean, true);   // an explicit restore beats older edits elsewhere
     state.txns = clean;
     state.sample = false;
     var r = !Array.isArray(data) && (validRate(data.rate) || validRate(data.exchangeRate));
-    if (r) { state.rate = r; el.rate.value = r.toFixed(2); }
+    if (r) { state.rate = r; state.rateUpdatedAt = Date.now(); el.rate.value = r.toFixed(2); }
     if (!Array.isArray(data) && data.learned) state.learned = sanitizeLearned(data.learned);
     persist();
     renderAll();
@@ -2444,6 +2481,7 @@
   function wipe(msg) {
     var snap = snapshot();
     var prevSample = state.sample;
+    reconcile(state.txns, []);
     state.txns = [];
     state.sample = false;
     persist();
@@ -2506,7 +2544,9 @@
   function loadDemo() {
     var snap = snapshot();
     var prevSample = state.sample;
-    state.txns = buildDemo();
+    var demo = buildDemo();
+    reconcile(state.txns, demo);
+    state.txns = demo;
     state.sample = true;
     var t = todayDate();
     state.selected = toISO(t);
@@ -2578,6 +2618,7 @@
     if (errs.length) { el.edErr.textContent = 'Please enter ' + errs.join(', ') + '.'; return; }
 
     var moved = t.date !== date;
+    t.updatedAt = Date.now();
     var newCat = CAT_BY_ID[el.edCat.value] ? el.edCat.value : 'General';
     if (newCat !== t.category) learnCategory(title, newCat);
     t.title = title.slice(0, 120);
@@ -2841,6 +2882,8 @@
     state.forced = null;
     state.sample = false;
     state.learned = { tokens: {}, phrases: {} };
+    state.deleted = {};
+    state.rateUpdatedAt = 0;
     flashIds = {};
     el.nl.value = '';
     disarmClear();
@@ -2859,10 +2902,12 @@
     renderAll();
     closeGate();
     scheduleAutoBackup(4000);
+    setTimeout(function () { if (active === p) syncNow(false); }, 400);
   }
 
   function leaveProfile() {
     clearTimeout(autoTimer);
+    clearTimeout(syncRun.timer);
     cloud.pass = null;
     cloud.passFor = null;
     active = null;
@@ -3023,7 +3068,15 @@
   var CLOUD_PREFIX = 'smartspend.cloud.p.';
   var DEFAULT_BACKUP_REPO = 'khajamohiddinsyed/smart-spend-backups';
   var TOKEN_URL = 'https://github.com/settings/personal-access-tokens/new';
-  var GH_API = 'https://api.github.com';
+  var GH_API = (function () {
+    try {
+      if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) {
+        var o = window.localStorage.getItem('smartspend.devApi');
+        if (o && /^http:\/\/(localhost|127\.0\.0\.1):\d+$/.test(o)) return o;
+      }
+    } catch (e) { /* storage blocked */ }
+    return 'https://api.github.com';
+  })();
   var ENC_FORMAT = 'smartspend-encrypted';
   var KDF_ITERATIONS = 310000;
   var AUTO_BACKUP_MS = 20 * 3600 * 1000;
@@ -3234,15 +3287,188 @@
     el.cloudBackupBtn.hidden = !c;
     el.cloudBackupBtn.disabled = cloud.busy;
     el.cloudBackupBtn.textContent = cloud.busy ? 'Backing up…' : 'Back up now';
+    el.cloudSyncBtn.hidden = !c || c.sync === false;
+    el.cloudSyncBtn.disabled = syncRun.busy;
+    el.cloudSyncBtn.textContent = syncRun.busy ? 'Syncing…' : 'Sync now';
     el.cloudSetupBtn.textContent = c ? 'Settings' : 'Set up';
     if (!c) {
       el.cloudStatus.textContent = 'Not set up. Keep an encrypted copy in a private GitHub repository.';
       return;
     }
-    var parts = [c.repo, c.lastAt ? 'last backup ' + timeAgo(c.lastAt) : 'no backup yet'];
-    if (c.auto) parts.push(sessionPass(c) ? 'daily automatic backup on' : 'automatic backup waits for the passphrase');
-    if (c.lastError) parts.push('last attempt failed');
+    var parts = [c.repo];
+    if (c.sync !== false) parts.push(c.syncError ? 'sync failed: ' + c.syncError : (c.syncAt ? 'synced ' + timeAgo(c.syncAt) : 'not synced yet'));
+    parts.push(c.lastAt ? 'last backup ' + timeAgo(c.lastAt) : 'no backup yet');
+    if (!sessionPass(c)) parts.push('enter the passphrase to sync and back up');
+    if (c.lastError) parts.push('last backup attempt failed');
     el.cloudStatus.textContent = parts.join(' · ');
+  }
+
+  /* ======================================================================
+     Sync between devices (docs/SYNC_SPEC.md in the Android project).
+     One encrypted ledger per profile at sync/<slug>/ledger.json; records
+     merge by id and the latest edit wins.
+     ====================================================================== */
+  /* SYNC-MERGE-BEGIN */
+  var TOMBSTONE_TTL_MS = 180 * 86400000;
+  function recCanon(r) {
+    return [r.title || '', (Number(r.amount) || 0).toFixed(2), r.type || '', r.category || '', r.date || ''].join('|');
+  }
+  function pickNewer(a, b) {
+    var au = Number(a.updatedAt) || 0, bu = Number(b.updatedAt) || 0;
+    if (au !== bu) return au > bu ? a : b;
+    if (!!a.deleted !== !!b.deleted) return a.deleted ? a : b;
+    return recCanon(a) >= recCanon(b) ? a : b;
+  }
+  function mergeLedgers(local, remote, now) {
+    var byId = {};
+    (remote.records || []).forEach(function (r) { if (r && r.id) byId[r.id] = r; });
+    (local.records || []).forEach(function (r) { if (r && r.id) byId[r.id] = byId[r.id] ? pickNewer(r, byId[r.id]) : r; });
+    var cutoff = now - TOMBSTONE_TTL_MS;
+    var records = Object.keys(byId).sort().map(function (k) { return byId[k]; })
+      .filter(function (r) { return !(r.deleted && (Number(r.updatedAt) || 0) < cutoff); });
+    var lr = Number(local.rateUpdatedAt) || 0, rr = Number(remote.rateUpdatedAt) || 0;
+    var rate = lr > rr || remote.rate == null ? local.rate : remote.rate;
+    return { records: records, rate: rate, rateUpdatedAt: Math.max(lr, rr) };
+  }
+  function ledgerCanon(l) {
+    var rows = (l.records || []).map(function (r) {
+      return [r.id, Number(r.updatedAt) || 0, r.deleted ? 1 : 0, r.deleted ? '' : recCanon(r)].join('#');
+    }).sort();
+    return JSON.stringify([rows, Number(l.rate) || 0]);
+  }
+  /* SYNC-MERGE-END */
+
+  var syncRun = { busy: false, again: false, applying: false, timer: null };
+
+  function syncPath(p) { return 'sync/' + profileSlug(p) + '/ledger.json'; }
+
+  function localLedger() {
+    var records = state.txns.map(function (t) {
+      return { id: t.id, title: t.title, amount: t.amount, type: t.type, category: t.category, date: t.date,
+        createdAt: t.createdAt, updatedAt: t.updatedAt || t.createdAt, deleted: false };
+    });
+    Object.keys(state.deleted).forEach(function (id) { records.push({ id: id, deleted: true, updatedAt: state.deleted[id] }); });
+    return { records: records, rate: state.rate, rateUpdatedAt: state.rateUpdatedAt || 0 };
+  }
+
+  function syncPayload(p, merged) {
+    return { app: 'smart-spend-sync', version: 1, profile: p.name, updatedAt: Date.now(),
+      rate: merged.rate, rateUpdatedAt: merged.rateUpdatedAt, records: merged.records };
+  }
+
+  // Replaces the local ledger with the merged one. Returns true if anything changed.
+  function applyMerged(merged) {
+    var before = ledgerCanon(localLedger());
+    var live = [], dead = {};
+    merged.records.forEach(function (r) {
+      if (r.deleted) { dead[r.id] = Number(r.updatedAt) || Date.now(); return; }
+      var t = sanitizeTxn(r);
+      if (t) { t.id = r.id; live.push(t); }
+    });
+    state.txns = live;
+    state.deleted = dead;
+    if (validRate(merged.rate)) {
+      state.rate = merged.rate;
+      state.rateUpdatedAt = merged.rateUpdatedAt || 0;
+      if (document.activeElement !== el.rate) el.rate.value = state.rate.toFixed(2);
+    }
+    var changed = before !== ledgerCanon(localLedger());
+    syncRun.applying = true;
+    try { persist(); } finally { syncRun.applying = false; }
+    if (changed) renderAll();
+    return changed;
+  }
+
+  function fetchRemoteLedger(c, p, pass) {
+    var path = syncPath(p);
+    return gh(c, 'GET', contentsPath(path)).then(function (meta) {
+      return gh(c, 'GET', contentsPath(path), null, true).then(function (text) {
+        var env;
+        try { env = JSON.parse(text); } catch (e) { throw new Error('The synced ledger on GitHub isn’t valid JSON.'); }
+        return decryptBackup(env, pass).then(function (payload) {
+          return { sha: meta && meta.sha, ledger: { records: Array.isArray(payload.records) ? payload.records : [], rate: payload.rate, rateUpdatedAt: payload.rateUpdatedAt } };
+        }, function (e) {
+          if (e.code === 'bad_pass') {
+            var er = new Error('Your passphrase doesn’t open the synced ledger for ' + p.name + '. Use the same passphrase as on your other devices.');
+            er.code = 'bad_pass';
+            throw er;
+          }
+          throw e;
+        });
+      });
+    }, function (e) {
+      if (e.status === 404) return { sha: null, ledger: { records: [], rate: null, rateUpdatedAt: 0 } };
+      throw e;
+    });
+  }
+
+  function syncNow(manual) {
+    if (!active) return Promise.resolve(false);
+    var p = active, c = cloudCfg(p.id);
+    if (!c || c.sync === false) { if (manual) openCloudSetup(); return Promise.resolve(false); }
+    if (!hasWebCrypto()) {
+      if (manual) toast('This browser can’t encrypt on this page. Open the app from its https address.', { tone: 'err' });
+      return Promise.resolve(false);
+    }
+    var pass = sessionPass(c);
+    if (!pass) { if (manual) askPassphrase(function () { syncNow(true); }); return Promise.resolve(false); }
+    if (syncRun.busy) { syncRun.again = true; return Promise.resolve(false); }
+    clearTimeout(syncRun.timer);
+    syncRun.busy = true;
+    renderCloud();
+    var attempt = 0, pulled = false, pushedCount = 0;
+
+    function round() {
+      attempt++;
+      return fetchRemoteLedger(c, p, pass).then(function (remote) {
+        if (!active || active.id !== p.id) { var gone = new Error('switched'); gone.code = 'switched'; throw gone; }
+        var merged = mergeLedgers(localLedger(), remote.ledger, Date.now());
+        var mustPush = remote.sha ? ledgerCanon(merged) !== ledgerCanon(remote.ledger) : merged.records.length > 0;
+        pulled = ledgerCanon(merged) !== ledgerCanon(localLedger());
+        if (!mustPush) return merged;
+        return encryptBackup(syncPayload(p, merged), pass).then(function (env) {
+          var body = { message: 'Smart Spend sync (' + profileSlug(p) + ')', content: btoa(JSON.stringify(env)) };
+          if (remote.sha) body.sha = remote.sha;
+          return gh(c, 'PUT', contentsPath(syncPath(p)), body);
+        }).then(function () { pushedCount = merged.records.length; return merged; });
+      }).catch(function (e) {
+        if ((e.status === 409 || e.status === 422) && attempt < 3) return round();
+        throw e;
+      });
+    }
+
+    return round().then(function (merged) {
+      // Keep anything added while the request was in flight, then sync that too.
+      var final = mergeLedgers(localLedger(), merged, Date.now());
+      var changed = applyMerged(final);
+      if (ledgerCanon(final) !== ledgerCanon(merged)) syncRun.again = true;
+      var fresh = cloudCfg(p.id) || c;
+      fresh.syncAt = Date.now();
+      fresh.syncError = null;
+      saveCloudCfg(p.id, fresh);
+      if (manual) toast('Synced · ' + plural(state.txns.length, 'record') + (changed ? ' · changes from another device applied' : ''), { tone: 'ok' });
+      else if (changed && pulled) toast('Synced changes from your other device', { tone: 'ok' });
+      return true;
+    }, function (e) {
+      if (e.code === 'switched') return false;
+      var fresh = cloudCfg(p.id);
+      if (fresh) { fresh.syncError = e.message; saveCloudCfg(p.id, fresh); }
+      if (manual || e.code === 'bad_pass') toast('Sync failed. ' + e.message, { tone: 'err', duration: 8000 });
+      return false;
+    }).then(function (ok) {
+      syncRun.busy = false;
+      renderCloud();
+      if (syncRun.again) { syncRun.again = false; scheduleSync(1500); }
+      return ok;
+    });
+  }
+
+  function scheduleSync(delay) {
+    if (syncRun.applying || !active) return;
+    var c = cloudCfg(active.id);
+    if (!c || c.sync === false || !sessionPass(c)) return;
+    clearTimeout(syncRun.timer);
+    syncRun.timer = setTimeout(function () { syncNow(false); }, delay || 4000);
   }
 
   /* ---------- Sheet (settings, restore list, passphrase) ---------- */
@@ -3310,8 +3536,10 @@
       '<label class="field">Confirm passphrase<input class="input" id="cfPass2" type="password" autocomplete="new-password"></label>' +
       '<label class="sh-check"><input type="checkbox" id="cfRemember"' + (!c || c.remember ? ' checked' : '') + '><span>Remember the passphrase on this device' +
       '<small>Needed for automatic backups. Turn it off on a shared device and you’ll be asked each time.</small></span></label>' +
-      '<label class="sh-check"><input type="checkbox" id="cfAuto"' + (!c || c.auto ? ' checked' : '') + '><span>Back up automatically' +
-      '<small>At most once a day, and only when something changed.</small></span></label>' +
+      '<label class="sh-check"><input type="checkbox" id="cfSync"' + (!c || c.sync !== false ? ' checked' : '') + '><span>Sync with my other devices' +
+      '<small>Keeps this profile the same in the web app and the Android app. Entries merge automatically; when the same entry was edited in two places, the latest edit wins.</small></span></label>' +
+      '<label class="sh-check"><input type="checkbox" id="cfAuto"' + (!c || c.auto ? ' checked' : '') + '><span>Keep daily backups' +
+      '<small>A dated snapshot at most once a day, only when something changed, so you can go back to an earlier state.</small></span></label>' +
       '<div class="sh-msg" id="cfMsg" role="alert"></div>' +
       '<div class="sh-actions">' + (c ? '<button type="button" class="btn danger" data-sheet="disconnect">Disconnect</button>' : '') +
       '<span class="spacer"></span><button type="button" class="btn" data-sheet="close">Cancel</button>' +
@@ -3325,7 +3553,7 @@
     var repo = $('cfRepo').value.trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
     var token = $('cfToken').value.trim() || (old ? old.token : '');
     var pass = $('cfPass').value, pass2 = $('cfPass2').value;
-    var remember = $('cfRemember').checked, auto = $('cfAuto').checked;
+    var remember = $('cfRemember').checked, auto = $('cfAuto').checked, sync = $('cfSync').checked;
     var fail = function (t) { sheetMsg('cfMsg', t); $('cfSave').disabled = false; };
     if (!repoParts(repo)) { fail('Enter the repository as owner/name, for example ' + DEFAULT_BACKUP_REPO + '.'); return; }
     if (!token) { fail('Paste a GitHub access token.'); return; }
@@ -3339,7 +3567,7 @@
     if (!hasWebCrypto()) { fail('This browser can’t encrypt on this page. Open the app from its https address.'); return; }
     var sameRepo = old && old.repo === repo;
     var cfg = {
-      repo: repo, token: token, auto: auto, remember: remember, pass: remember ? usePass : null,
+      repo: repo, token: token, auto: auto, sync: sync, remember: remember, pass: remember ? usePass : null, syncAt: sameRepo ? old.syncAt : 0,
       verifier: null, lastAt: sameRepo ? old.lastAt : 0, lastHash: sameRepo ? old.lastHash : null,
       lastPath: sameRepo ? old.lastPath : null, lastError: null
     };
@@ -3351,9 +3579,12 @@
       return listBackups(cfg, p);
     }).then(function (list) {
       found = list;
-      if (!list.length || sheet.data.mismatchOk) return null;
-      return fetchBackup(cfg, list[0].path).then(function (env) {
-        return isEncryptedBackup(env) ? decryptBackup(env, usePass) : null;
+      if (sheet.data.mismatchOk) return null;
+      return fetchRemoteLedger(cfg, p, usePass).then(function (remote) {
+        if (remote.sha || !list.length) return null;
+        return fetchBackup(cfg, list[0].path).then(function (env) {
+          return isEncryptedBackup(env) ? decryptBackup(env, usePass) : null;
+        });
       }).catch(function (e) {
         if (e.code === 'bad_pass') { var er = new Error('mismatch'); er.code = 'mismatch'; throw er; }
         throw e;
@@ -3367,22 +3598,23 @@
       rememberSessionPass(usePass);
       closeSheet();
       renderCloud();
-      if (!state.txns.length && found.length) {
-        openRestore();
-        toast('Connected · found ' + plural(found.length, 'backup') + ' for ' + p.name + '. Pick one to restore.', { tone: 'ok', duration: 6000 });
-      } else if (state.txns.length && (!cfg.lastHash || cfg.lastHash !== ledgerHash())) {
-        toast('Online backup connected', { tone: 'ok' });
-        cloudBackup(false);
-      } else {
-        toast('Online backup connected', { tone: 'ok' });
-      }
+      toast('Online backup connected', { tone: 'ok' });
+      (cfg.sync ? syncNow(false) : Promise.resolve(false)).then(function () {
+        if (!active || active.id !== p.id) return;
+        if (!state.txns.length && found.length) {
+          openRestore();
+          toast('Found ' + plural(found.length, 'backup') + ' for ' + p.name + '. Pick one to restore.', { tone: 'ok', duration: 6000 });
+        } else if (state.txns.length && !cfg.lastHash) {
+          cloudBackup(false);
+        }
+      });
     }).catch(function (e) {
       if (e.code === 'public') {
         sheet.data.publicOk = true;
         fail(repo + ' is a public repository. The backups would still be encrypted, but a private repository is safer. Press Save again to use it anyway.');
       } else if (e.code === 'mismatch') {
         sheet.data.mismatchOk = true;
-        fail('This passphrase doesn’t open the latest backup for ' + p.name + '. Enter the passphrase you used before, or press Save again to start a new set of backups with this one.');
+        fail('This passphrase doesn’t open the existing online data for ' + p.name + '. Enter the passphrase you used on your other devices, or press Save again to start fresh with this one.');
       } else {
         fail(e.message);
       }
@@ -3543,6 +3775,13 @@
   function bindCloud() {
     el.cloudSetupBtn.addEventListener('click', openCloudSetup);
     el.cloudBackupBtn.addEventListener('click', function () { cloudBackup(false); });
+    el.cloudSyncBtn.addEventListener('click', function () { syncNow(true); });
+    // Pull the other device's changes when this tab comes back into view.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible' || !active || gate.open) return;
+      var c = cloudCfg(active.id);
+      if (c && c.sync !== false && Date.now() - (c.syncAt || 0) > 30000) syncNow(false);
+    });
     el.sheetOverlay.addEventListener('mousedown', function (e) { if (e.target === el.sheetOverlay) closeSheet(); });
     el.sheetOverlay.addEventListener('click', function (e) {
       var b = e.target.closest('[data-sheet]');
@@ -3595,6 +3834,7 @@
       el.rate.classList.toggle('bad', !v);
       if (!v) return;
       state.rate = v;
+      state.rateUpdatedAt = Date.now();
       persist();
       renderSummary(); renderLog(); renderBreakdown(); renderPreview();
       if (editing) updateEditInr();
