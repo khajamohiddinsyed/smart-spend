@@ -281,7 +281,8 @@ export function moreView() {
     '<div class="set-row"><span class="set-ico" style="color:' + (cs.level === 'ok' ? 'var(--in-text)' : cs.level === 'error' ? 'var(--out-text)' : cs.level === 'warn' ? 'var(--warn)' : 'var(--text-2)') + '">' + icon('cloud') + '</span>' +
     '<span class="set-main"><b>' + esc(cs.title) + '</b><span>' + esc(cs.detail) + '</span></span></div>' +
     (c ? '<div class="set-row" style="gap:10px;flex-wrap:wrap">' + (c.sync !== false ? '<button class="btn sm primary" data-act="sync-now">' + icon('sync') + 'Sync now</button>' : '') +
-      '<button class="btn sm" data-act="backup-now">' + icon('upload') + 'Back up now</button><button class="btn sm" data-act="cloud-settings">Settings</button></div>'
+      '<button class="btn sm" data-act="backup-now">' + icon('upload') + 'Back up now</button><button class="btn sm" data-act="cloud-settings">Settings</button></div>' +
+      '<button class="set-row" data-act="add-device"><span class="set-ico">' + icon('phone') + '</span><span class="set-main"><b>Add another device</b><span>A setup link, so the new device only needs your passphrase</span></span><span class="chev">' + icon('next') + '</span></button>'
       : '<div class="set-row"><button class="btn sm primary" data-act="cloud-settings">' + icon('cloud') + 'Set up online backup</button></div>') + '</div>';
 
   html += '<div class="section-label">Your data</div><div class="set-group">' +

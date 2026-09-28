@@ -394,6 +394,41 @@ export async function inspectExisting(input) {
   return { repo: c.repo, token, owner, meta, found: found.length };
 }
 
+/* ---------- setup links: bring a new device over with only the passphrase ----------
+   The link carries { name, repo, token } encrypted with the backup passphrase, in the
+   URL fragment (after #), which browsers never send to the server. */
+
+export const PUBLIC_APP_URL = 'https://khajamohiddinsyed.github.io/smart-spend/app/';
+const b64url = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64url = (s) => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; return atob(s); };
+
+export async function makeSetupLink(p) {
+  const c = cloudCfg(p.id), pass = passphrase(p.id, c);
+  if (!c) throw new Error('Set up online backup first.');
+  if (!pass) { const e = new Error('Enter the backup passphrase first.'); e.code = 'need_pass'; throw e; }
+  const env = await encryptBackup({ app: 'smart-spend-link', v: 1, name: p.name, repo: c.repo, token: c.token, createdAt: Date.now() }, pass);
+  // Links always open the public web app (the Android app accepts them pasted too).
+  const onPublicSite = location.protocol === 'https:' && location.hostname.endsWith('github.io') && !window.Capacitor;
+  const base = onPublicSite ? location.origin + location.pathname : PUBLIC_APP_URL;
+  return base + '#join=' + b64url(JSON.stringify(env));
+}
+
+/** Pulls the encrypted part out of a pasted link (or the bare code). Null when it isn't one. */
+export function parseSetupLink(text) {
+  const m = /(?:^|#|[?&])join=([A-Za-z0-9_-]{40,})/.exec(String(text || '').trim()) || /^([A-Za-z0-9_-]{120,})$/.exec(String(text || '').trim());
+  if (!m) return null;
+  try { const env = JSON.parse(unb64url(m[1])); return isEncryptedBackup(env) ? env : null; } catch (e) { return null; }
+}
+
+export async function openSetupLink(env, pass) {
+  const d = await decryptBackup(env, pass).catch((e) => {
+    if (e.code === 'bad_pass') { const er = new Error('That passphrase doesn’t open this setup link. Use the backup passphrase from your other device.'); er.code = 'bad_pass'; throw er; }
+    throw e;
+  });
+  if (!d || d.app !== 'smart-spend-link' || !d.name || !d.repo || !d.token) throw new Error('That setup link isn’t complete. Create a new one on your other device.');
+  return d;
+}
+
 /* ---------- setup ---------- */
 
 function repoParts(repo) {

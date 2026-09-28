@@ -8,7 +8,7 @@ import {
 } from './ledger.js';
 import {
   cloudCfg, setupCloud, forgetCloud, providePassphrase, passphrase, listBackups, fetchBackup, isEncryptedBackup,
-  openEnvelope, syncNow, backupNow, tokenOwner, cleanRepo, DEFAULT_REPO_NAME, TOKEN_URL, NEW_REPO_URL, timeAgo
+  openEnvelope, syncNow, backupNow, tokenOwner, cleanRepo, DEFAULT_REPO_NAME, TOKEN_URL, NEW_REPO_URL, timeAgo, makeSetupLink
 } from './sync.js';
 import { slugOf } from './profiles.js';
 import { ui } from './appstate.js';
@@ -41,7 +41,7 @@ function qaPreview() {
   let html = '<div class="pv-h">' + (res.items.length ? 'Will add ' + plural(res.items.length, 'entry', 'entries') : 'Add an amount, like “coffee 12”') + '</div>';
   html += res.items.map((it) => {
     const c = catOf(it.category);
-    const when = it.dated || it.inherited ? fmtDate(it.date) : fmtDate(it.date) + ' · selected day';
+    const when = dateLabel(it.date) + (it.dated ? ' · from your text' : '');
     const note = it.forced ? 'your pick' : it.catSource === 'learned' ? 'learned' : it.catSource === 'typo' ? it.catHint : '';
     return '<div class="pv-item">' + catIcon(it.category) +
       '<div style="min-width:0"><div class="pv-t">' + esc(it.title) + '</div><div class="pv-m"><span>' + esc(c.label) + (note ? ' · ' + esc(note) : '') + '</span><span>' + esc(when) + '</span>' +
@@ -58,6 +58,16 @@ function syncQaButton() {
   if (b) { b.disabled = !qa.items.length; b.textContent = qa.items.length > 1 ? 'Add ' + qa.items.length + ' entries' : 'Add entry'; }
 }
 function dateLabel(iso) { return iso === todayISO() ? 'Today' : fmtDate(iso); }
+function yesterdayISO() { const d = fromISO(todayISO()); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function dateRow() {
+  const t = todayISO(), y = yesterdayISO(), custom = qa.date !== t && qa.date !== y;
+  return '<div class="qa-date" role="group" aria-label="Date">' +
+    '<button type="button" data-qa="d-set" data-d="' + t + '" aria-pressed="' + (qa.date === t) + '">Today</button>' +
+    '<button type="button" data-qa="d-set" data-d="' + y + '" aria-pressed="' + (qa.date === y) + '">Yesterday</button>' +
+    '<label class="pick" aria-pressed="' + custom + '">' + icon('activity') + '<span>' + (custom ? esc(fmtDate(qa.date)) : 'Pick a date') + '</span>' +
+    '<input type="date" id="qaDate" value="' + qa.date + '" aria-label="Pick a date"></label></div>';
+}
+function setQaDate(iso) { qa.date = iso; $('#qaDateRow').innerHTML = dateRow(); qaPreview(); }
 
 export function openQuickAdd(prefill) {
   qa = { date: ui.selected, forced: null, items: [], timer: null };
@@ -65,9 +75,9 @@ export function openQuickAdd(prefill) {
     '<label class="sr" for="qaText">What happened?</label>' +
     '<textarea class="input" id="qaText" data-autofocus rows="3" placeholder="e.g. Got cash 450 on 24th sep and spent 40 on fuel" autocomplete="off" spellcheck="false">' + esc(prefill || '') + '</textarea>' +
     '<div class="examples">' + ['spent 40 on fuel and 18 coffee', 'salary 14,500 credited', 'panda groceries 212.50 yesterday', '₹500 jio recharge'].map((e) => '<button data-qa="ex" data-ex="' + esc(e) + '">' + esc(e) + '</button>').join('') + '</div>' +
-    '<div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px;flex-wrap:wrap"><span class="date-chip">' + icon('activity') +
-    '<span id="qaDateLbl">Undated → ' + esc(dateLabel(qa.date)) + '</span><input type="date" id="qaDate" value="' + qa.date + '" aria-label="Date for entries without one"></span>' +
-    '<span class="help">Entries without a date go to this day.</span></div>' +
+    '<div class="field-lbl">Date</div><div id="qaDateRow">' + dateRow() + '</div>' +
+    '<p class="help" style="margin:6px 0 12px">A date you type, like “24th sep” or “yesterday”, still wins for that entry.</p>' +
+    '<div class="field-lbl">Category</div>' +
     '<div id="qaCats">' + catChips(null) + '</div>' +
     '<div class="pv" id="qaPreview" aria-live="polite"></div>';
   openSheet({
@@ -78,13 +88,16 @@ export function openQuickAdd(prefill) {
       if (e.target.id === 'qaText') { clearTimeout(qa.timer); qa.timer = setTimeout(qaPreview, 110); }
     },
     change: (e) => {
-      if (e.target.id === 'qaDate' && e.target.value) { qa.date = e.target.value; $('#qaDateLbl').textContent = 'Undated → ' + dateLabel(qa.date); qaPreview(); }
+      if (e.target.id === 'qaDate' && e.target.value) setQaDate(e.target.value);
     },
     click: (e, t) => {
+      const pick = t.closest('.qa-date .pick');
+      if (pick && t.tagName !== 'INPUT') { const inp = $('#qaDate'); try { inp.showPicker(); } catch (err) { inp.focus(); } return; }
       const b = t.closest('[data-qa]');
       if (!b) return;
       const act = b.getAttribute('data-qa');
       if (act === 'ex') { $('#qaText').value = b.getAttribute('data-ex'); qaPreview(); }
+      else if (act === 'd-set') setQaDate(b.getAttribute('data-d'));
       else if (act === 'cat') { const c = b.getAttribute('data-cat') || null; qa.forced = qa.forced === c ? null : c; $('#qaCats').innerHTML = catChips(qa.forced); qaPreview(); }
       else if (act === 'save') saveQuick();
     }
@@ -243,6 +256,34 @@ export function openCloudSetup() {
       msg(e.message);
     }
   }
+}
+
+/* ============================ ADD ANOTHER DEVICE ============================ */
+
+export async function openAddDevice() {
+  const p = ui.profile;
+  let link;
+  try { link = await makeSetupLink(p); }
+  catch (e) { if (e.code === 'need_pass') { askPassphrase(() => openAddDevice()); return; } toast(e.message, { tone: 'err' }); return; }
+  const canShare = !!navigator.share;
+  openSheet({
+    title: 'Add another device',
+    body: '<p class="help" style="margin:0 0 14px;font-size:14px">Send this link to yourself (for example on WhatsApp or by email) and open it on the new phone or computer. There you’ll only need your <b>backup passphrase</b>: the repository, token, entries and PIN come across by themselves.</p>' +
+      '<label class="field">Setup link<textarea class="input" id="devLink" rows="4" readonly style="font-size:12.5px;min-height:92px">' + esc(link) + '</textarea></label>' +
+      '<div class="msg info" id="devMsg" style="margin-top:6px"></div>' +
+      '<div class="warnbox" style="margin-top:10px;background:var(--warn-soft);border-color:rgba(245,158,11,.35)">The token inside is encrypted with your passphrase, so the link alone can’t open anything. Still, only send it to yourself, and delete the message once you’ve used it.</div>',
+    foot: (canShare ? '<button class="btn" data-dev="share">' + icon('upload') + 'Share</button>' : '') + '<button class="btn primary" data-dev="copy">Copy link</button>',
+    click: async (e, t) => {
+      const b = t.closest('[data-dev]');
+      if (!b) return;
+      if (b.getAttribute('data-dev') === 'copy') {
+        try { await navigator.clipboard.writeText(link); $('#devMsg').textContent = 'Copied. Paste it into a message to yourself.'; }
+        catch (err) { const ta = $('#devLink'); ta.focus(); ta.select(); $('#devMsg').textContent = 'Select all and copy the link above.'; }
+      } else {
+        try { await navigator.share({ title: 'Smart Spend setup link', text: 'Open on your new device to connect Smart Spend:', url: link }); } catch (err) { /* cancelled */ }
+      }
+    }
+  });
 }
 
 /* ============================== PASSPHRASE ============================== */

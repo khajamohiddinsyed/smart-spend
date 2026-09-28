@@ -7,8 +7,9 @@ import { cloudCfg, describe, syncNow, scheduleSync, scheduleAutoBackup, backupNo
 import { ui, resetScreenState } from './appstate.js';
 import { icon, avatar, toast, initToast, initSheet, openSheet, closeSheet, sheetOpen, prefs, setPref, applyTheme, armed } from './ui.js';
 import { homeView, activityView, activityListHtml, activityCounts, insightsView, moreView } from './views.js';
-import { openQuickAdd, openEdit, removeWithUndo, openBudgets, openCloudSetup, askPassphrase, openRestore } from './sheets.js';
+import { openQuickAdd, openEdit, removeWithUndo, openBudgets, openCloudSetup, askPassphrase, openRestore, openAddDevice } from './sheets.js';
 import { initGate, show as showGate, gateOpen } from './gate.js';
+import { parseSetupLink } from './sync.js';
 
 const TABS = ['home', 'activity', 'insights', 'more'];
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -182,6 +183,7 @@ function onViewClick(e) {
     case 'sync-now': syncNow(p, true); break;
     case 'backup-now': backupNow(p, false); break;
     case 'cloud-settings': openCloudSetup(); break;
+    case 'add-device': openAddDevice(); break;
     case 'switch-profile': leave(); break;
     case 'change-pin': showGate('pin', { pid: p.id, mode: 'change', step: 'current', overlay: true }); break;
     case 'delete-profile': showGate('delete', { pid: p.id, overlay: true }); break;
@@ -374,8 +376,12 @@ function boot() {
     if (ui.profile && e.key === dataKey(ui.profile.id)) { load(ui.profile.id); render(); }
   });
 
+  // Opened from a setup link? Keep it in memory only and take it off the address bar.
+  const setup = /^#join=/.test(location.hash) ? parseSetupLink(location.hash) : null;
+  if (/^#join=/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search);
   const resume = findProfile(sessionProfile.get());
-  if (resume && resume.pinHash) enter(resume);
+  if (setup) showGate('join', { link: setup });
+  else if (resume && resume.pinHash) enter(resume);
   else showGate('list');
 }
 

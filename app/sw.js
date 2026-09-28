@@ -1,6 +1,6 @@
 // Offline support: the app shell is cached; everything else goes to the network.
 // GitHub (backups and sync) is never cached.
-const VERSION = 'smartspend-2.1.0';
+const VERSION = 'smartspend-2.2.0';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './css/app.css',
   './js/main.js', './js/core.js', './js/categories.js', './js/parser.js', './js/ledger.js', './js/profiles.js',

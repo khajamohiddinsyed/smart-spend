@@ -6,12 +6,12 @@ import {
   lockSecondsLeft, PIN_LEN, initialOf
 } from './profiles.js';
 import { countFor, removeProfileData, DATA_PREFIX } from './ledger.js';
-import { forgetCloud, inspectExisting, setupCloud, tokenOwner, cleanRepo, DEFAULT_REPO_NAME, TOKEN_URL } from './sync.js';
+import { forgetCloud, inspectExisting, setupCloud, tokenOwner, cleanRepo, DEFAULT_REPO_NAME, TOKEN_URL, parseSetupLink, openSetupLink } from './sync.js';
 import { adoptPin, saveProfiles } from './profiles.js';
 import { icon, avatar } from './ui.js';
 import { store } from './core.js';
 
-const g = { open: false, screen: 'list', pid: null, mode: null, step: null, entry: '', first: null, err: '', info: false, busy: false, armed: false, overlay: false };
+const g = { open: false, screen: 'list', pid: null, mode: null, step: null, entry: '', first: null, err: '', info: false, busy: false, armed: false, overlay: false, link: null };
 let hooks = { onUnlock: () => {}, onClose: () => {}, onDeleted: () => {} };
 let ticker = null;
 
@@ -23,6 +23,12 @@ export function initGate(h) {
     if (k) { press(k.getAttribute('data-key')); return; }
     const a = e.target.closest('[data-g]');
     if (a) action(a.getAttribute('data-g'), a);
+  });
+  root.addEventListener('input', (e) => {
+    if (e.target.id !== 'jnLink') return;
+    const env = parseSetupLink(e.target.value);
+    if (env) show('join', { link: env });
+    else if (e.target.value.trim().length > 20) { const m = $('#jnMsg'); if (m) m.textContent = 'That doesn’t look like a Smart Spend setup link.'; }
   });
   root.addEventListener('submit', (e) => { e.preventDefault(); if (e.target.id === 'addForm') add($('#newName').value); if (e.target.id === 'joinForm') join(); });
   document.addEventListener('keydown', (e) => {
@@ -43,7 +49,7 @@ export const gateOpen = () => g.open;
 
 export function show(screen, o = {}) {
   Object.assign(g, { open: true, screen, pid: o.pid || null, mode: o.mode || null, step: o.step || null, entry: '', first: null,
-    err: o.err || '', info: !!o.info, busy: false, armed: false, overlay: !!o.overlay });
+    err: o.err || '', info: !!o.info, busy: false, armed: false, overlay: !!o.overlay, link: o.link || (screen === 'join' ? g.link : null) });
   const root = $('#gate');
   root.hidden = false;
   $('#app').setAttribute('inert', '');
@@ -84,10 +90,20 @@ function render() {
       '<h1 class="g-title">Add a profile</h1><p class="g-sub">Give it a name. You’ll set its PIN next.</p>' +
       '<form class="form" id="addForm" novalidate><input class="input" id="newName" maxlength="24" autocomplete="off" autocapitalize="words" placeholder="Name" data-autofocus aria-label="Profile name">' +
       '<div class="msg" id="addErr" role="alert">' + esc(g.err) + '</div><button class="btn primary block" type="submit">Continue</button></form>';
+  } else if (g.screen === 'join' && g.link) {
+    h = '<button class="g-back" data-g="to-list">' + icon('back') + 'Profiles</button>' + brand +
+      '<h1 class="g-title">Setup link found</h1><p class="g-sub">Enter your backup passphrase to bring your entries, PIN and online backup to this device.</p>' +
+      '<form class="form" id="joinForm" novalidate>' +
+      '<label class="field">Backup passphrase<input class="input" id="jnPass" type="password" autocomplete="current-password" data-autofocus></label>' +
+      '<label class="check"><input type="checkbox" id="jnRemember" checked><span>Remember the passphrase here<small>Needed for automatic sync. Turn off on a shared device.</small></span></label>' +
+      '<div class="msg" id="jnMsg" role="alert"></div><button class="btn primary block" type="submit" id="jnGo">Connect</button>' +
+      '<button class="gate-link" type="button" data-g="join-manual">Enter the details by hand instead</button></form>';
   } else if (g.screen === 'join') {
     h = '<button class="g-back" data-g="to-list">' + icon('back') + 'Profiles</button>' + brand +
       '<h1 class="g-title">Connect to your data</h1><p class="g-sub">Use the same details as on your other device. Your entries and your PIN come across.</p>' +
       '<form class="form" id="joinForm" novalidate>' +
+      '<label class="field">Have a setup link?<input class="input" id="jnLink" autocomplete="off" spellcheck="false" placeholder="Paste it here"><span class="help">Create one on your other device: Settings → Add another device.</span></label>' +
+      '<div class="dim" style="text-align:center;font-size:12.5px;font-weight:650">or enter the details</div>' +
       '<label class="field">Profile name<input class="input" id="jnName" autocomplete="off" autocapitalize="words" placeholder="e.g. Sharooq" data-autofocus></label>' +
       '<label class="field">GitHub access token<div style="display:flex;gap:8px"><input class="input" id="jnToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"><button type="button" class="btn sm" data-g="join-check" style="min-height:48px">Check</button></div>' +
       '<span class="help" id="jnOwner">The token you made for Smart Spend. Lost it? <a href="' + TOKEN_URL + '" target="_blank" rel="noopener noreferrer">Create a new one</a> with the same settings.</span></label>' +
@@ -198,6 +214,7 @@ function action(act, el) {
     if (pr) show('pin', pr.pinHash ? { pid: pr.id, mode: 'unlock' } : { pid: pr.id, mode: 'create', step: 'new' });
   } else if (act === 'add') show('add');
   else if (act === 'join') show('join');
+  else if (act === 'join-manual') { g.link = null; show('join'); }
   else if (act === 'join-check') joinCheck();
   else if (act === 'to-list') show('list');
   else if (act === 'cancel') close();
@@ -242,7 +259,19 @@ async function joinCheck() {
 
 async function join() {
   const btn = $('#jnGo');
-  const input = { name: $('#jnName').value, token: $('#jnToken').value, repo: cleanRepo($('#jnRepo').value), pass: $('#jnPass').value, remember: $('#jnRemember').checked };
+  let input;
+  if (g.link) {
+    const pass = $('#jnPass').value;
+    if (!pass) { jmsg('Enter your backup passphrase.'); return; }
+    btn.disabled = true;
+    jmsg('Opening the setup link…', 'info');
+    try {
+      const d = await openSetupLink(g.link, pass);
+      input = { name: d.name, token: d.token, repo: d.repo, pass, remember: $('#jnRemember').checked };
+    } catch (e) { btn.disabled = false; jmsg(e.message); return; }
+  } else {
+    input = { name: $('#jnName').value, token: $('#jnToken').value, repo: cleanRepo($('#jnRepo').value), pass: $('#jnPass').value, remember: $('#jnRemember').checked };
+  }
   btn.disabled = true;
   jmsg('Checking your details… this takes a few seconds.', 'info');
   try {
@@ -255,9 +284,11 @@ async function join() {
     await setupCloud(p, { repo: found.repo, token: found.token, pass: input.pass, pass2: input.pass, sync: true, remember: input.remember, auto: true },
       { publicOk: true, mismatchOk: false });
     if (found.meta && adoptPin(p, found.meta)) {
+      g.link = null;
       unlock(p, 'Welcome back, ' + p.name + '. Your entries are syncing, and your PIN is the same as on your other device.');
     } else {
       saveProfiles();
+      g.link = null;
       show('pin', { pid: p.id, mode: 'create', step: 'new', err: 'Connected. Your other device hasn’t shared a PIN yet, so choose one for this device.', info: true });
     }
   } catch (e) {
