@@ -1,0 +1,210 @@
+// Profile picker and PIN keypad: pick → (create | enter) PIN → ledger. Also change PIN and delete.
+
+import { $, esc, plural, haptic } from './core.js';
+import {
+  profiles, findProfile, addProfile, removeProfile, pinMatches, setPin, clearPin, recordWrongPin, recordGoodPin,
+  lockSecondsLeft, PIN_LEN, initialOf
+} from './profiles.js';
+import { countFor, removeProfileData, DATA_PREFIX } from './ledger.js';
+import { forgetCloud } from './sync.js';
+import { icon, avatar } from './ui.js';
+import { store } from './core.js';
+
+const g = { open: false, screen: 'list', pid: null, mode: null, step: null, entry: '', first: null, err: '', info: false, busy: false, armed: false, overlay: false };
+let hooks = { onUnlock: () => {}, onClose: () => {}, onDeleted: () => {} };
+let ticker = null;
+
+export function initGate(h) {
+  hooks = Object.assign(hooks, h);
+  const root = $('#gate');
+  root.addEventListener('click', (e) => {
+    const k = e.target.closest('[data-key]');
+    if (k) { press(k.getAttribute('data-key')); return; }
+    const a = e.target.closest('[data-g]');
+    if (a) action(a.getAttribute('data-g'), a);
+  });
+  root.addEventListener('submit', (e) => { e.preventDefault(); if (e.target.id === 'addForm') add($('#newName').value); });
+  document.addEventListener('keydown', (e) => {
+    if (!g.open) return;
+    if (g.screen === 'pin' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (/^\d$/.test(e.key)) { e.preventDefault(); press(e.key); return; }
+      if (e.key === 'Backspace') { e.preventDefault(); press('del'); return; }
+    }
+    if (e.key === 'Escape') {
+      if (g.overlay) { e.preventDefault(); close(); }
+      else if (g.screen === 'forgot') show('pin', { pid: g.pid, mode: 'unlock' });
+      else if (g.screen !== 'list') show('list');
+    }
+  });
+}
+
+export const gateOpen = () => g.open;
+
+export function show(screen, o = {}) {
+  Object.assign(g, { open: true, screen, pid: o.pid || null, mode: o.mode || null, step: o.step || null, entry: '', first: null,
+    err: o.err || '', info: !!o.info, busy: false, armed: false, overlay: !!o.overlay });
+  const root = $('#gate');
+  root.hidden = false;
+  $('#app').setAttribute('inert', '');
+  render();
+  setTimeout(() => { const f = root.querySelector('[data-autofocus]') || root.querySelector('button'); if (f) { try { f.focus({ preventScroll: true }); } catch (e) { f.focus(); } } }, 40);
+}
+
+export function close() {
+  g.open = false;
+  clearInterval(ticker);
+  $('#gate').hidden = true;
+  $('#app').removeAttribute('inert');
+  hooks.onClose();
+}
+
+const checking = () => g.mode === 'unlock' || g.step === 'current';
+
+function prompt() {
+  if (g.mode === 'unlock') return 'Enter your ' + PIN_LEN + '-digit PIN';
+  if (g.mode === 'create') return g.step === 'confirm' ? 'Enter the same PIN again' : 'Create a ' + PIN_LEN + '-digit PIN to lock this profile';
+  if (g.step === 'current') return 'Enter your current PIN';
+  return g.step === 'confirm' ? 'Enter the new PIN again' : 'Choose a new ' + PIN_LEN + '-digit PIN';
+}
+
+function render() {
+  clearInterval(ticker);
+  const p = findProfile(g.pid);
+  const brand = '<div class="brand"><span class="logo">' + icon('logo') + '</span>Smart Spend</div>';
+  let h = '';
+  if (g.screen === 'list') {
+    h = brand + '<h1 class="g-title">Who’s tracking?</h1><p class="g-sub">Each profile keeps its own ledger and PIN on this device.</p><div class="pgrid">' +
+      profiles.list.map((pr, i) => '<button class="pcard" data-g="pick" data-pid="' + esc(pr.id) + '"' + (i === 0 ? ' data-autofocus' : '') + '>' + avatar(pr, 56) +
+        '<span class="pn">' + esc(pr.name) + '</span>' + (pr.pinHash ? '<span class="ps">' + icon('lock') + 'PIN locked</span>' : '<span class="ps new">New · set a PIN</span>') + '</button>').join('') +
+      '<button class="pcard add" data-g="add"><span class="av" style="width:56px;height:56px;font-size:26px">+</span><span class="pn">Add profile</span><span class="ps">Separate ledger</span></button></div>';
+  } else if (g.screen === 'add') {
+    h = '<button class="g-back" data-g="to-list">' + icon('back') + 'Profiles</button>' + brand +
+      '<h1 class="g-title">Add a profile</h1><p class="g-sub">Give it a name. You’ll set its PIN next.</p>' +
+      '<form class="form" id="addForm" novalidate><input class="input" id="newName" maxlength="24" autocomplete="off" autocapitalize="words" placeholder="Name" data-autofocus aria-label="Profile name">' +
+      '<div class="msg" id="addErr" role="alert">' + esc(g.err) + '</div><button class="btn primary block" type="submit">Continue</button></form>';
+  } else if (g.screen === 'pin' && p) {
+    const secs = checking() ? lockSecondsLeft(p) : 0;
+    const err = secs ? 'Too many wrong tries. Try again in ' + secs + 's.' : g.err;
+    let dots = '';
+    for (let i = 0; i < PIN_LEN; i++) dots += '<i' + (i < g.entry.length ? ' class="on"' : '') + '></i>';
+    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((k) => '<button class="key" data-key="' + k + '"' + (secs ? ' disabled' : '') + '>' + k + '</button>').join('') +
+      '<span></span><button class="key" data-key="0"' + (secs ? ' disabled' : '') + '>0</button><button class="key ghost" data-key="del" aria-label="Delete last digit"' + (secs ? ' disabled' : '') + '>' + icon('del') + '</button>';
+    h = '<button class="g-back" data-g="' + (g.overlay ? 'cancel' : 'to-list') + '">' + icon('back') + (g.overlay ? 'Cancel' : 'Profiles') + '</button>' +
+      '<div class="pin-head">' + avatar(p, 68) + '<div class="pn">' + esc(p.name) + '</div><div class="pp" id="pinPrompt">' + esc(prompt()) + '</div></div>' +
+      '<div class="dots-row" id="pinDots" role="img" aria-label="' + g.entry.length + ' of ' + PIN_LEN + ' digits entered">' + dots + '</div>' +
+      '<div class="pin-err' + (g.info && !secs ? ' info' : '') + '" id="pinErr" role="alert">' + esc(err) + '</div>' +
+      '<div class="keypad">' + keys + '</div>' +
+      (g.mode === 'unlock' ? '<button class="gate-link" data-g="forgot">Forgot PIN?</button>' : '');
+    if (secs) ticker = setInterval(() => { if (lockSecondsLeft(p) <= 0) g.err = ''; render(); }, 1000);
+  } else if ((g.screen === 'forgot' || g.screen === 'delete') && p) {
+    const n = countFor(p.id), del = g.screen === 'delete';
+    h = '<button class="g-back" data-g="' + (del ? 'cancel' : 'back-pin') + '">' + icon('back') + (del ? 'Cancel' : 'Back') + '</button>' +
+      '<div class="pin-head">' + avatar(p, 68) + '<div class="pn">' + esc(p.name) + '</div></div>' +
+      '<h1 class="g-title" style="text-align:center;font-size:24px">' + (del ? 'Delete this profile?' : 'Reset the PIN?') + '</h1>' +
+      '<div class="warnbox">' + (del ? 'This removes <b>' + esc(p.name) + '</b>, its PIN and its ' + plural(n, 'record') + ' from this device.'
+        : 'A PIN can’t be recovered. Resetting erases <b>' + esc(p.name) + '</b>’s ' + plural(n, 'record') + ' and online-backup settings on this device, then you choose a new PIN. Online backups stay on GitHub and can be restored with the backup passphrase.') + ' This can’t be undone.</div>' +
+      '<div style="display:flex;gap:10px;margin-top:18px"><button class="btn" style="flex:1" data-g="' + (del ? 'cancel' : 'back-pin') + '" data-autofocus>Cancel</button>' +
+      '<button class="btn danger' + (g.armed ? ' armed' : '') + '" style="flex:1" data-g="' + (del ? 'confirm-delete' : 'confirm-reset') + '">' + (g.armed ? 'Tap again to confirm' : del ? 'Delete profile' : 'Erase and reset') + '</button></div>';
+  } else { g.screen = 'list'; render(); return; }
+  $('#gate').innerHTML = '<div class="gate-card">' + h + '</div>' + (g.screen === 'list' && /^https?:$/.test(location.protocol) ? '<a class="gate-foot" href="../">Get the Android app</a>' : '');
+}
+
+function dotsUpdate(shake) {
+  const d = $('#pinDots');
+  if (!d) { render(); return; }
+  Array.from(d.children).forEach((x, i) => x.classList.toggle('on', i < g.entry.length));
+  d.setAttribute('aria-label', g.entry.length + ' of ' + PIN_LEN + ' digits entered');
+  if (shake) { d.classList.remove('shake'); void d.offsetWidth; d.classList.add('shake'); }
+}
+
+function fail(msg) {
+  haptic([30, 40, 30]);
+  dotsUpdate(true);
+  setTimeout(() => { g.entry = ''; g.err = msg; g.info = false; g.busy = false; render(); }, 380);
+}
+function step(next, info) { setTimeout(() => { g.step = next; g.entry = ''; g.err = info || ''; g.info = !!info; g.busy = false; render(); }, 150); }
+
+function press(k) {
+  if (!g.open || g.screen !== 'pin' || g.busy) return;
+  const p = findProfile(g.pid);
+  if (!p || (checking() && lockSecondsLeft(p) > 0)) return;
+  if (k === 'del') { g.entry = g.entry.slice(0, -1); dotsUpdate(); return; }
+  if (!/^\d$/.test(k) || g.entry.length >= PIN_LEN) return;
+  g.entry += k;
+  haptic(6);
+  if (g.err && !g.info) { g.err = ''; const e = $('#pinErr'); if (e) e.textContent = ''; }
+  dotsUpdate();
+  if (g.entry.length === PIN_LEN) { g.busy = true; setTimeout(submit, 110); }
+}
+
+async function submit() {
+  const p = findProfile(g.pid);
+  if (!p) { show('list'); return; }
+  const pin = g.entry;
+  if (checking()) {
+    let ok = false;
+    try { ok = await pinMatches(p, pin); } catch (e) { ok = false; }
+    if (!ok) {
+      const left = recordWrongPin(p);
+      fail(left ? 'Wrong PIN. ' + plural(left, 'try', 'tries') + ' left.' : '');
+      return;
+    }
+    recordGoodPin(p);
+    if (g.mode === 'unlock') { unlock(p); return; }
+    step('new');
+    return;
+  }
+  if (g.step === 'new') { g.first = pin; step('confirm'); return; }
+  if (pin !== g.first) { g.first = null; g.step = 'new'; fail('Those PINs didn’t match. Choose the PIN again.'); return; }
+  setPin(p, pin);
+  if (g.mode === 'change') { close(); hooks.onToast && hooks.onToast('PIN changed for ' + p.name); }
+  else unlock(p, 'PIN set. Use it to open ' + p.name + ' next time.');
+}
+
+function unlock(p, message) {
+  haptic(10);
+  g.open = false;
+  clearInterval(ticker);
+  $('#gate').hidden = true;
+  $('#app').removeAttribute('inert');
+  hooks.onUnlock(p, message);
+}
+
+function armGate() {
+  if (g.armed) return true;
+  g.armed = true; render();
+  setTimeout(() => { if (g.open) { g.armed = false; render(); } }, 3500);
+  return false;
+}
+
+function action(act, el) {
+  const p = findProfile(g.pid);
+  if (act === 'pick') {
+    const pr = findProfile(el.getAttribute('data-pid'));
+    if (pr) show('pin', pr.pinHash ? { pid: pr.id, mode: 'unlock' } : { pid: pr.id, mode: 'create', step: 'new' });
+  } else if (act === 'add') show('add');
+  else if (act === 'to-list') show('list');
+  else if (act === 'cancel') close();
+  else if (act === 'forgot' && p) show('forgot', { pid: p.id });
+  else if (act === 'back-pin' && p) show('pin', { pid: p.id, mode: 'unlock' });
+  else if (act === 'confirm-reset' && p && armGate()) {
+    store.setJSON(DATA_PREFIX + p.id, { v: 1, transactions: [] });
+    forgetCloud(p.id);                               // someone without the PIN must not inherit the token or passphrase
+    clearPin(p);
+    show('pin', { pid: p.id, mode: 'create', step: 'new', err: 'Data erased. Choose a new PIN.', info: true });
+  } else if (act === 'confirm-delete' && p && armGate()) {
+    removeProfileData(p.id);
+    forgetCloud(p.id);
+    removeProfile(p.id);
+    hooks.onDeleted(p);
+    show('list');
+  }
+}
+
+function add(name) {
+  const r = addProfile(name);
+  if (r.error) { g.err = r.error; const box = $('#addErr'); if (box) box.textContent = r.error; const i = $('#newName'); if (i) { i.classList.add('bad'); i.focus(); } return; }
+  show('pin', { pid: r.profile.id, mode: 'create', step: 'new' });
+}
+
+export { initialOf };
