@@ -35,6 +35,7 @@ function sanitizeProfile(p, idx) {
     // "pbkdf2" marks a PIN carried over from the Android app (PBKDF2-HMAC-SHA256, hex salt).
     pinAlgo: p.pinAlgo === 'pbkdf2' ? 'pbkdf2' : undefined,
     pinIter: Number(p.pinIter) || undefined,
+    pinUpdatedAt: Number(p.pinUpdatedAt) || 0,
     fails: Number(p.fails) || 0,
     lockUntil: Number(p.lockUntil) || 0,
     createdAt: Number(p.createdAt) || Date.now()
@@ -103,8 +104,21 @@ export function setPin(p, pin) {
   p.salt = randomHex(16);
   p.pinHash = hashPin(pin, p.salt);
   delete p.pinAlgo; delete p.pinIter;
+  p.pinUpdatedAt = Date.now();
   p.fails = 0; p.lockUntil = 0;
   saveProfiles();
+}
+
+/** Takes the PIN a profile uses on the person's other devices (from the encrypted profile file). */
+export function adoptPin(p, meta) {
+  if (!meta || !meta.pin || !meta.pin.hash || !meta.pin.salt) return false;
+  p.salt = meta.pin.salt;
+  p.pinHash = meta.pin.hash;
+  if (meta.pin.algo === 'pbkdf2') { p.pinAlgo = 'pbkdf2'; p.pinIter = Number(meta.pin.iter) || 20000; } else { delete p.pinAlgo; delete p.pinIter; }
+  p.pinUpdatedAt = Number(meta.pinUpdatedAt) || Date.now();
+  p.fails = 0; p.lockUntil = 0;
+  saveProfiles();
+  return true;
 }
 
 export function clearPin(p) {

@@ -3,7 +3,7 @@
 import { $, esc, on, todayISO, fromISO, fmtDateLong, addMonths, MONTHS_FULL, haptic, reducedMotion, pad } from './core.js';
 import { profiles, loadProfiles, findProfile, sessionProfile, saveProfiles, PROFILES_KEY } from './profiles.js';
 import { state, load, reset, setRate, loadDemo, clearAll, restoreSnapshot, buildBackupPayload, dataKey } from './ledger.js';
-import { cloudCfg, describe, syncNow, scheduleSync, scheduleAutoBackup, backupNow, cancelTimers, forgetSessionPass } from './sync.js';
+import { cloudCfg, describe, syncNow, scheduleSync, scheduleAutoBackup, backupNow, cancelTimers, forgetSessionPass, publishPin } from './sync.js';
 import { ui, resetScreenState } from './appstate.js';
 import { icon, avatar, toast, initToast, initSheet, openSheet, closeSheet, sheetOpen, prefs, setPref, applyTheme, armed } from './ui.js';
 import { homeView, activityView, activityListHtml, activityCounts, insightsView, moreView } from './views.js';
@@ -305,7 +305,8 @@ function boot() {
     onUnlock: (p, msg) => enter(p, msg),
     onClose: () => { if (ui.profile) render(); },
     onDeleted: (p) => { if (ui.profile && ui.profile.id === p.id) { ui.profile = null; sessionProfile.set(null); reset(null); } },
-    onToast: (m) => toast(m, { tone: 'ok' })
+    onToast: (m) => toast(m, { tone: 'ok' }),
+    onPinChanged: (p) => { publishPin(p); }
   });
 
   // chrome
@@ -355,6 +356,7 @@ function boot() {
   on('toast', (t) => toast(t.msg, { tone: t.tone, duration: t.duration }));
   on('need-setup', () => openCloudSetup());
   on('need-pass', (d) => askPassphrase(d && d.then));
+  on('pin-updated', (p) => { if (ui.profile && ui.profile.id === p.id) toast('Your PIN was updated from your other device.'); });
 
   // lock after 5 minutes away; sync when coming back sooner
   let hiddenAt = 0;

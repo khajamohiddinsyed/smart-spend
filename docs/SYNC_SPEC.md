@@ -13,6 +13,7 @@ accessed through the REST contents API with a fine-grained token that has
 ```
 backups/<slug>/<YYYY-MM-DD>T<HHMMSS>Z-<4 hex>.json   snapshot backups (history)
 sync/<slug>/ledger.json                              the live synced ledger
+sync/<slug>/profile.json                             the profile's PIN, shared by its devices (v1.1 of this spec)
 ```
 
 `<slug>` is the profile name lower-cased with every run of characters outside
@@ -79,6 +80,29 @@ accept the Android v1.0 file shape
   "updatedAt": 1790000000000, "rate": 26.5, "rateUpdatedAt": 1790000000000,
   "records": [ <live records and tombstones> ] }
 ```
+
+## Profile file (`sync/<slug>/profile.json`)
+
+Added with web app 2.1. Encrypted like everything else. It lives apart from the
+ledger on purpose: an app that rewrites the ledger without knowing this file can
+never drop it.
+
+```json
+{ "app": "smart-spend-profile", "version": 1, "name": "Sharooq", "color": "#38bdf8",
+  "updatedAt": 1790000000000, "pinUpdatedAt": 1790000000000,
+  "pin": { "salt": "<hex>", "hash": "<hex>", "algo": "sha256x2000" | "pbkdf2", "iter": 20000 } }
+```
+
+- `algo: "sha256x2000"` (web): `h = SHA256(salt + "|" + pin)`, then 2000 times
+  `h = SHA256(h + salt)`, lower-case hex, salt is 32 hex chars.
+- `algo: "pbkdf2"` (Android): PBKDF2-HMAC-SHA256 over the PIN's UTF-8 bytes, the
+  hex-decoded salt and `iter` rounds, 32 bytes, lower-case hex.
+- Newest `pinUpdatedAt` wins: after a sync, a device adopts the remote PIN when
+  it is newer, and publishes its own when its own is newer. Setting or changing a
+  PIN stamps `pinUpdatedAt`.
+- "I already use Smart Spend" on a new device reads this file to bring the PIN
+  across. It must never replace the PIN of a profile that already has one on
+  that device.
 
 ## Merge rule (latest edit wins)
 

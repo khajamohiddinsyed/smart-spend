@@ -4,7 +4,7 @@
 
 import { store, emit, pad, randomHex, plural, sha256Hex, fmtDate, toISO } from './core.js';
 import { state, persist, sanitizeTxn, validRate, buildBackupPayload } from './ledger.js';
-import { slugOf } from './profiles.js';
+import { slugOf, adoptPin } from './profiles.js';
 
 const CLOUD_PREFIX = 'smartspend.cloud.p.';
 export const DEFAULT_REPO_NAME = 'smart-spend-backups';
@@ -90,7 +90,7 @@ function ghError(status, body, repo) {
   const says = msg ? ' GitHub says: “' + msg + '”.' : '';
   if (status === 401) return 'GitHub rejected the access token. It may be mistyped, expired or revoked.';
   if (status === 403 && /rate limit/i.test(msg)) return 'GitHub is limiting requests right now. Wait a few minutes and try again.';
-  if (status === 403) return 'The token isn’t allowed to write to ' + repo + '. On GitHub, give it “Contents: Read and write” for that repository.' + says;
+  if (status === 403) return 'The token isn’t allowed to read or write files in ' + repo + '. On GitHub, open the token: under Repository permissions it should list “Read and Write access to code” (that is Contents, not Actions).' + says;
   if (status === 404) return 'Repository ' + repo + ' wasn’t found, or the token can’t access it. The repository must belong to the same GitHub account as the token, and be selected under the token’s Repository access.';
   if (status === 409 || status === 422) return 'GitHub refused the upload.' + says + ' Try again.';
   return 'GitHub returned an error (' + status + ').' + says;
@@ -114,6 +114,7 @@ export function tokenOwner(token) {
 const contentsPath = (p) => '/contents/' + p.split('/').map(encodeURIComponent).join('/');
 const backupFolder = (p) => 'backups/' + slugOf(p);
 const syncPath = (p) => 'sync/' + slugOf(p) + '/ledger.json';
+const profilePath = (p) => 'sync/' + slugOf(p) + '/profile.json';
 function newBackupName() {
   const d = new Date();
   return d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T' +
@@ -253,6 +254,7 @@ export async function syncNow(p, manual) {
     const changed = applyMerged(final);
     if (ledgerCanon(final) !== ledgerCanon(merged)) again = true;
     patchCfg(p.id, { syncAt: Date.now(), syncError: null });
+    await syncProfileMeta(p, cloudCfg(p.id), pass);
     if (manual) emit('toast', { msg: 'Synced · ' + plural(state.txns.length, 'record') + (changed ? ' · changes from another device applied' : ''), tone: 'ok' });
     else if (changed && pulled) emit('toast', { msg: 'Synced changes from your other device', tone: 'ok' });
     return true;
@@ -314,6 +316,83 @@ export function scheduleAutoBackup(p, delay) {
 }
 
 export function cancelTimers() { clearTimeout(syncTimer); clearTimeout(backupTimer); }
+
+/* ---------- profile file: the PIN, shared by the person's devices ----------
+   Kept in its own encrypted file (sync/<slug>/profile.json) rather than in the
+   ledger, because the Android app v1.1 rewrites the ledger and would drop it. */
+
+function profileMeta(p) {
+  return {
+    app: 'smart-spend-profile', version: 1, name: p.name, color: p.color, updatedAt: Date.now(),
+    pinUpdatedAt: p.pinUpdatedAt || 0,
+    pin: p.pinHash ? { salt: p.salt, hash: p.pinHash, algo: p.pinAlgo === 'pbkdf2' ? 'pbkdf2' : 'sha256x2000', iter: p.pinIter || null } : null
+  };
+}
+async function fetchProfileMeta(c, p, pass) {
+  let meta;
+  try { meta = await gh(c, 'GET', contentsPath(profilePath(p))); } catch (e) { if (e.status === 404) return { sha: null, data: null }; throw e; }
+  const text = await gh(c, 'GET', contentsPath(profilePath(p)), null, true);
+  return { sha: meta.sha, data: await decryptBackup(JSON.parse(text), pass) };
+}
+async function pushProfileMeta(p, c, pass, sha) {
+  const env = await encryptBackup(profileMeta(p), pass);
+  const body = { message: 'Smart Spend profile (' + slugOf(p) + ')', content: btoa(JSON.stringify(env)) };
+  if (sha) body.sha = sha;
+  const res = await gh(c, 'PUT', contentsPath(profilePath(p)), body);
+  patchCfg(p.id, { profileSha: res && res.content ? res.content.sha : null });
+}
+/** Newest PIN wins: adopt the other devices' PIN if it changed later, or publish ours. Best effort. */
+async function syncProfileMeta(p, c, pass) {
+  if (!c || !pass) return;
+  try {
+    let sha = null;
+    try { sha = (await gh(c, 'GET', contentsPath(profilePath(p)))).sha; } catch (e) { if (e.status !== 404) throw e; }
+    if (!sha) { if (p.pinHash) await pushProfileMeta(p, c, pass, null); return; }
+    if (sha === c.profileSha) return;                              // unchanged since we last looked
+    const cur = await fetchProfileMeta(c, p, pass);
+    const remoteAt = (cur.data && cur.data.pinUpdatedAt) || 0, localAt = p.pinUpdatedAt || 0;
+    if (cur.data && cur.data.pin && remoteAt > localAt) { adoptPin(p, cur.data); emit('pin-updated', p); }
+    else if (p.pinHash && localAt > remoteAt) { await pushProfileMeta(p, c, pass, cur.sha); return; }
+    patchCfg(p.id, { profileSha: cur.sha });
+  } catch (e) { /* the ledger synced; the PIN will follow next time */ }
+}
+/** Publishes a PIN change right away (if online backup is set up and the passphrase is known). */
+export function publishPin(p) {
+  const c = cloudCfg(p.id), pass = passphrase(p.id, c);
+  if (!c || !pass || !hasWebCrypto()) return Promise.resolve();
+  return syncProfileMeta(p, Object.assign({}, c, { profileSha: null }), pass);
+}
+
+/**
+ * "I already use Smart Spend": checks the details and reads what the person's other
+ * devices saved for this profile name, without changing anything on this device.
+ * Returns { repo, token, owner, meta, found }.
+ */
+export async function inspectExisting(input) {
+  const name = String(input.name || '').replace(/\s+/g, ' ').trim();
+  if (!name) throw new Error('Enter your profile name exactly as it appears on your other device.');
+  const token = (input.token || '').trim();
+  if (token.length < 20 || /\s/.test(token)) throw new Error('Paste your GitHub access token.');
+  if (!input.pass) throw new Error('Enter your backup passphrase.');
+  if (!hasWebCrypto()) throw new Error('This browser can’t decrypt on this page. Open the app from its https address.');
+  const temp = { id: '_join', name };
+  let owner = null;
+  try { owner = await tokenOwner(token); } catch (e) { if (e.status === 401) throw e; }
+  const rp = repoParts(cleanRepo(input.repo) || (owner ? owner + '/' + DEFAULT_REPO_NAME : ''));
+  if (!rp) throw new Error('Enter the repository as owner/name, for example ' + (owner || 'yourname') + '/' + DEFAULT_REPO_NAME + '.');
+  const c = { repo: rp.owner + '/' + rp.name, token };
+  if (owner && owner.toLowerCase() !== rp.owner.toLowerCase()) throw new Error('This token belongs to ' + owner + ', but ' + c.repo + ' is in ' + rp.owner + '’s account. Use ' + owner + '/' + DEFAULT_REPO_NAME + '.');
+  await gh(c, 'GET', '');
+  const [ledger, found] = await Promise.all([fetchRemoteLedger(c, temp, input.pass), listBackups(c, temp)]);
+  let meta = null;
+  try { meta = (await fetchProfileMeta(c, temp, input.pass)).data; } catch (e) { if (e.code === 'bad_pass') throw e; }
+  if (!ledger.sha && !found.length && !meta) throw new Error('Nothing was found for “' + name + '” in ' + c.repo + '. Check the profile name matches your other device exactly.');
+  if (!ledger.sha && found.length) {                                  // no synced ledger yet: prove the passphrase on a backup
+    const env = await fetchBackup(c, found[0].path);
+    if (isEncryptedBackup(env)) await decryptBackup(env, input.pass).catch((e) => { if (e.code === 'bad_pass') { const er = new Error('That passphrase doesn’t open the data for ' + name + '.'); er.code = 'bad_pass'; throw er; } throw e; });
+  }
+  return { repo: c.repo, token, owner, meta, found: found.length };
+}
 
 /* ---------- setup ---------- */
 
@@ -378,6 +457,7 @@ export async function setupCloud(p, input, flags) {
   cfg.verifier = await encryptBackup({ check: 'smart-spend' }, usePass);
   saveCfg(p.id, cfg);
   rememberSessionPass(p.id, usePass);
+  await syncProfileMeta(p, cfg, usePass);
   return { found: found.length, owner };
 }
 

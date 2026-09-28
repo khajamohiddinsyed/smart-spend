@@ -6,7 +6,8 @@ import {
   lockSecondsLeft, PIN_LEN, initialOf
 } from './profiles.js';
 import { countFor, removeProfileData, DATA_PREFIX } from './ledger.js';
-import { forgetCloud } from './sync.js';
+import { forgetCloud, inspectExisting, setupCloud, tokenOwner, cleanRepo, DEFAULT_REPO_NAME, TOKEN_URL } from './sync.js';
+import { adoptPin, saveProfiles } from './profiles.js';
 import { icon, avatar } from './ui.js';
 import { store } from './core.js';
 
@@ -23,7 +24,7 @@ export function initGate(h) {
     const a = e.target.closest('[data-g]');
     if (a) action(a.getAttribute('data-g'), a);
   });
-  root.addEventListener('submit', (e) => { e.preventDefault(); if (e.target.id === 'addForm') add($('#newName').value); });
+  root.addEventListener('submit', (e) => { e.preventDefault(); if (e.target.id === 'addForm') add($('#newName').value); if (e.target.id === 'joinForm') join(); });
   document.addEventListener('keydown', (e) => {
     if (!g.open) return;
     if (g.screen === 'pin' && !e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -76,12 +77,24 @@ function render() {
     h = brand + '<h1 class="g-title">Who’s tracking?</h1><p class="g-sub">Each profile keeps its own ledger and PIN on this device.</p><div class="pgrid">' +
       profiles.list.map((pr, i) => '<button class="pcard" data-g="pick" data-pid="' + esc(pr.id) + '"' + (i === 0 ? ' data-autofocus' : '') + '>' + avatar(pr, 56) +
         '<span class="pn">' + esc(pr.name) + '</span>' + (pr.pinHash ? '<span class="ps">' + icon('lock') + 'PIN locked</span>' : '<span class="ps new">New · set a PIN</span>') + '</button>').join('') +
-      '<button class="pcard add" data-g="add"><span class="av" style="width:56px;height:56px;font-size:26px">+</span><span class="pn">Add profile</span><span class="ps">Separate ledger</span></button></div>';
+      '<button class="pcard add" data-g="add"><span class="av" style="width:56px;height:56px;font-size:26px">+</span><span class="pn">Add profile</span><span class="ps">Separate ledger</span></button></div>' +
+      '<button class="btn block" style="margin-top:14px" data-g="join">' + icon('cloud') + 'I already use Smart Spend on another device</button>';
   } else if (g.screen === 'add') {
     h = '<button class="g-back" data-g="to-list">' + icon('back') + 'Profiles</button>' + brand +
       '<h1 class="g-title">Add a profile</h1><p class="g-sub">Give it a name. You’ll set its PIN next.</p>' +
       '<form class="form" id="addForm" novalidate><input class="input" id="newName" maxlength="24" autocomplete="off" autocapitalize="words" placeholder="Name" data-autofocus aria-label="Profile name">' +
       '<div class="msg" id="addErr" role="alert">' + esc(g.err) + '</div><button class="btn primary block" type="submit">Continue</button></form>';
+  } else if (g.screen === 'join') {
+    h = '<button class="g-back" data-g="to-list">' + icon('back') + 'Profiles</button>' + brand +
+      '<h1 class="g-title">Connect to your data</h1><p class="g-sub">Use the same details as on your other device. Your entries and your PIN come across.</p>' +
+      '<form class="form" id="joinForm" novalidate>' +
+      '<label class="field">Profile name<input class="input" id="jnName" autocomplete="off" autocapitalize="words" placeholder="e.g. Sharooq" data-autofocus></label>' +
+      '<label class="field">GitHub access token<div style="display:flex;gap:8px"><input class="input" id="jnToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…"><button type="button" class="btn sm" data-g="join-check" style="min-height:48px">Check</button></div>' +
+      '<span class="help" id="jnOwner">The token you made for Smart Spend. Lost it? <a href="' + TOKEN_URL + '" target="_blank" rel="noopener noreferrer">Create a new one</a> with the same settings.</span></label>' +
+      '<label class="field">Repository<input class="input" id="jnRepo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="yourname/' + DEFAULT_REPO_NAME + '"><span class="help">Shown on your other device under Settings → Online backup.</span></label>' +
+      '<label class="field">Backup passphrase<input class="input" id="jnPass" type="password" autocomplete="current-password"></label>' +
+      '<label class="check"><input type="checkbox" id="jnRemember" checked><span>Remember the passphrase here<small>Needed for automatic sync. Turn off on a shared device.</small></span></label>' +
+      '<div class="msg" id="jnMsg" role="alert"></div><button class="btn primary block" type="submit" id="jnGo">Connect</button></form>';
   } else if (g.screen === 'pin' && p) {
     const secs = checking() ? lockSecondsLeft(p) : 0;
     const err = secs ? 'Too many wrong tries. Try again in ' + secs + 's.' : g.err;
@@ -157,6 +170,7 @@ async function submit() {
   if (g.step === 'new') { g.first = pin; step('confirm'); return; }
   if (pin !== g.first) { g.first = null; g.step = 'new'; fail('Those PINs didn’t match. Choose the PIN again.'); return; }
   setPin(p, pin);
+  if (hooks.onPinChanged) hooks.onPinChanged(p);
   if (g.mode === 'change') { close(); hooks.onToast && hooks.onToast('PIN changed for ' + p.name); }
   else unlock(p, 'PIN set. Use it to open ' + p.name + ' next time.');
 }
@@ -183,6 +197,8 @@ function action(act, el) {
     const pr = findProfile(el.getAttribute('data-pid'));
     if (pr) show('pin', pr.pinHash ? { pid: pr.id, mode: 'unlock' } : { pid: pr.id, mode: 'create', step: 'new' });
   } else if (act === 'add') show('add');
+  else if (act === 'join') show('join');
+  else if (act === 'join-check') joinCheck();
   else if (act === 'to-list') show('list');
   else if (act === 'cancel') close();
   else if (act === 'forgot' && p) show('forgot', { pid: p.id });
@@ -205,6 +221,49 @@ function add(name) {
   const r = addProfile(name);
   if (r.error) { g.err = r.error; const box = $('#addErr'); if (box) box.textContent = r.error; const i = $('#newName'); if (i) { i.classList.add('bad'); i.focus(); } return; }
   show('pin', { pid: r.profile.id, mode: 'create', step: 'new' });
+}
+
+/* ---------- "I already use Smart Spend" ---------- */
+
+const jmsg = (t, tone) => { const m = $('#jnMsg'); if (m) { m.className = 'msg' + (tone ? ' ' + tone : ''); m.textContent = t; } };
+
+async function joinCheck() {
+  const tok = $('#jnToken').value.trim();
+  if (!tok) { jmsg('Paste the token first.'); return; }
+  $('#jnOwner').textContent = 'Checking…';
+  try {
+    const owner = await tokenOwner(tok);
+    $('#jnOwner').innerHTML = owner ? 'Token belongs to <b>' + esc(owner) + '</b>.' : 'Token accepted.';
+    const r = $('#jnRepo');
+    if (owner && !r.value) r.value = owner + '/' + DEFAULT_REPO_NAME;
+    jmsg('');
+  } catch (e) { $('#jnOwner').textContent = ''; jmsg(e.message); }
+}
+
+async function join() {
+  const btn = $('#jnGo');
+  const input = { name: $('#jnName').value, token: $('#jnToken').value, repo: cleanRepo($('#jnRepo').value), pass: $('#jnPass').value, remember: $('#jnRemember').checked };
+  btn.disabled = true;
+  jmsg('Checking your details… this takes a few seconds.', 'info');
+  try {
+    const found = await inspectExisting(input);
+    const name = input.name.replace(/\s+/g, ' ').trim();
+    // Reuse a matching profile that has no PIN yet (e.g. the built-in Sharooq); never take over one that does.
+    let p = profiles.list.find((x) => x.name.toLowerCase() === name.toLowerCase());
+    if (p && p.pinHash) throw new Error('A profile called ' + p.name + ' is already set up on this device. Open it, then connect online backup from Settings.');
+    if (!p) { const r = addProfile(name); if (r.error) throw new Error(r.error); p = r.profile; }
+    await setupCloud(p, { repo: found.repo, token: found.token, pass: input.pass, pass2: input.pass, sync: true, remember: input.remember, auto: true },
+      { publicOk: true, mismatchOk: false });
+    if (found.meta && adoptPin(p, found.meta)) {
+      unlock(p, 'Welcome back, ' + p.name + '. Your entries are syncing, and your PIN is the same as on your other device.');
+    } else {
+      saveProfiles();
+      show('pin', { pid: p.id, mode: 'create', step: 'new', err: 'Connected. Your other device hasn’t shared a PIN yet, so choose one for this device.', info: true });
+    }
+  } catch (e) {
+    btn.disabled = false;
+    jmsg(e.code === 'mismatch' || e.code === 'bad_pass' ? 'That passphrase doesn’t open the data for this profile. Use the passphrase from your other device.' : e.message);
+  }
 }
 
 export { initialOf };
